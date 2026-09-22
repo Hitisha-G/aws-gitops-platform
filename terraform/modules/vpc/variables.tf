@@ -11,6 +11,11 @@ variable "vpc_cidr" {
 variable "availability_zones" {
   type        = list(string)
   description = "AZs that receive one public and one private subnet each."
+
+  validation {
+    condition     = length(var.availability_zones) >= 2
+    error_message = "Provide at least two availability zones for high availability."
+  }
 }
 
 variable "tags" {
