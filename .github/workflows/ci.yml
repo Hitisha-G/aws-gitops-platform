@@ -9,6 +9,13 @@ permissions:
   contents: read
 
 jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: VPC CIDR layout tests
+        run: bash tests/vpc_cidr_layout_test.sh
+
   terraform:
     runs-on: ubuntu-latest
     steps:
