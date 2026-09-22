@@ -23,7 +23,7 @@ assert_eq() {
 # Python implements Terraform cidrsubnet(prefix, newbits, netnum).
 cidrsubnet() {
   local prefix="$1" newbits="$2" netnum="$3"
-  python3 - "$prefix" "$newbits" "$netnum" <<'PY'
+  python3 - "$prefix" "$newbits" "$netnum" <<'PYINNER'
 import ipaddress, sys
 network = ipaddress.ip_network(sys.argv[1], strict=True)
 newbits = int(sys.argv[2])
@@ -32,7 +32,7 @@ new_prefix = network.prefixlen + newbits
 block_size = 2 ** (32 - new_prefix)
 base = int(network.network_address) + netnum * block_size
 print(f"{ipaddress.IPv4Address(base)}/{new_prefix}")
-PY
+PYINNER
 }
 
 VPC_CIDR="10.40.0.0/16"
@@ -60,6 +60,29 @@ else
   echo "FAIL: missing AZ count validation in module variables" >&2
   FAIL=$((FAIL + 1))
 fi
+
+# Alternate VPC CIDR (common lab default) keeps the same /20 stride pattern
+VPC_CIDR="10.0.0.0/16"
+AZ_COUNT=2
+assert_eq "alt public[0]"  "10.0.0.0/20"  "$(cidrsubnet "$VPC_CIDR" 4 0)"
+assert_eq "alt public[1]"  "10.0.16.0/20" "$(cidrsubnet "$VPC_CIDR" 4 1)"
+assert_eq "alt private[0]" "10.0.32.0/20" "$(cidrsubnet "$VPC_CIDR" 4 $((0 + AZ_COUNT)))"
+assert_eq "alt private[1]" "10.0.48.0/20" "$(cidrsubnet "$VPC_CIDR" 4 $((1 + AZ_COUNT)))"
+
+# Overlap guard: every public block must be disjoint from every private block (2-4 AZs)
+for AZ_COUNT in 2 3 4; do
+  for i in $(seq 0 $((AZ_COUNT - 1))); do
+    pub="$(cidrsubnet "$VPC_CIDR" 4 "$i")"
+    priv="$(cidrsubnet "$VPC_CIDR" 4 $((i + AZ_COUNT)))"
+    if python3 -c "import ipaddress,sys; a=ipaddress.ip_network(sys.argv[1]); b=ipaddress.ip_network(sys.argv[2]); sys.exit(0 if not a.overlaps(b) else 1)" "$pub" "$priv"; then
+      echo "PASS: disjoint az_count=$AZ_COUNT index=$i ($pub vs $priv)"
+      PASS=$((PASS + 1))
+    else
+      echo "FAIL: overlap az_count=$AZ_COUNT index=$i ($pub vs $priv)" >&2
+      FAIL=$((FAIL + 1))
+    fi
+  done
+done
 
 echo "---"
 echo "passed=$PASS failed=$FAIL"
