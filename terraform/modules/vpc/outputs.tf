@@ -5,12 +5,16 @@ output "vpc_id" {
 
 output "private_subnet_ids" {
   description = "IDs of the private subnets, ordered by AZ index."
-  value       = [for s in aws_subnet.private : s.id]
+  value = [
+    for az in var.availability_zones : aws_subnet.private[az].id
+  ]
 }
 
 output "public_subnet_ids" {
   description = "IDs of the public subnets, ordered by AZ index."
-  value       = [for s in aws_subnet.public : s.id]
+  value = [
+    for az in var.availability_zones : aws_subnet.public[az].id
+  ]
 }
 
 output "private_route_table_id" {
