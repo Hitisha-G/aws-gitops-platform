@@ -118,7 +118,8 @@ resource "aws_nat_gateway" "this" {
   count = var.enable_nat_gateway ? 1 : 0
 
   allocation_id = aws_eip.nat[0].id
-  subnet_id     = aws_subnet.public[var.availability_zones[0]].id
+  # Stable AZ pick: sort keys so list reorder does not force NAT replacement.
+  subnet_id = aws_subnet.public[sort(keys(local.az_index))[0]].id
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-nat"

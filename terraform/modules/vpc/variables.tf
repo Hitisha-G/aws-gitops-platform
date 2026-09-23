@@ -16,6 +16,11 @@ variable "availability_zones" {
     condition     = length(var.availability_zones) >= 2
     error_message = "Provide at least two availability zones for high availability."
   }
+
+  validation {
+    condition     = length(var.availability_zones) == length(toset(var.availability_zones))
+    error_message = "availability_zones must not contain duplicate entries."
+  }
 }
 
 variable "tags" {

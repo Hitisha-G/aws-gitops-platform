@@ -61,6 +61,16 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# Guardrail: duplicate AZ entries must be rejected (for_each keys collide otherwise)
+if grep -q 'length(toset(var.availability_zones))' \
+  "$ROOT/terraform/modules/vpc/variables.tf"; then
+  echo "PASS: AZ uniqueness validation present in module variables"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing AZ uniqueness validation in module variables" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 # Alternate VPC CIDR (common lab default) keeps the same /20 stride pattern
 VPC_CIDR="10.0.0.0/16"
 AZ_COUNT=2
