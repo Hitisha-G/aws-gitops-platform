@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -11,13 +16,21 @@ permissions:
 jobs:
   unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: ShellCheck test scripts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          shellcheck tests/*.sh
       - name: VPC CIDR layout tests
         run: bash tests/vpc_cidr_layout_test.sh
 
   terraform:
     runs-on: ubuntu-latest
+    needs: [unit]
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Check for Terraform root
