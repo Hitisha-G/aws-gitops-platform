@@ -21,3 +21,9 @@ variable "availability_zones" {
   description = "AZs used by the VPC module."
   default     = ["ap-south-1a", "ap-south-1b"]
 }
+
+variable "enable_nat_gateway" {
+  type        = bool
+  description = "Create a single NAT gateway for private subnet egress."
+  default     = true
+}

@@ -23,3 +23,9 @@ variable "tags" {
   description = "Common tags merged onto every resource in this module."
   default     = {}
 }
+
+variable "enable_nat_gateway" {
+  type        = bool
+  description = "When true, place one NAT gateway in the first public subnet and route private traffic through it."
+  default     = true
+}

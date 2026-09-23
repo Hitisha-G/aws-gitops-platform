@@ -4,6 +4,7 @@ module "vpc" {
   project_name       = var.project_name
   vpc_cidr           = var.vpc_cidr
   availability_zones = var.availability_zones
+  enable_nat_gateway = var.enable_nat_gateway
 
   tags = {
     ManagedBy = "terraform"

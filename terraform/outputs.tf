@@ -12,3 +12,8 @@ output "public_subnet_ids" {
   description = "Public subnet IDs for load balancers and bastion paths."
   value       = module.vpc.public_subnet_ids
 }
+
+output "nat_gateway_id" {
+  description = "NAT gateway ID used by private subnets (null when disabled)."
+  value       = module.vpc.nat_gateway_id
+}
