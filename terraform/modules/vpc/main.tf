@@ -31,6 +31,15 @@ resource "aws_vpc" "this" {
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-vpc"
   })
+
+  # Fail early when AZ count needs more carved subnets than vpc_cidr allows
+  # (subnet_newbits=4 => at most 2^4 = 16 public+private blocks).
+  lifecycle {
+    precondition {
+      condition     = local.az_count * 2 <= pow(2, local.subnet_newbits)
+      error_message = "vpc_cidr subnet carving (newbits=4) supports at most 8 availability zones; reduce availability_zones or widen the carve."
+    }
+  }
 }
 
 resource "aws_internet_gateway" "this" {

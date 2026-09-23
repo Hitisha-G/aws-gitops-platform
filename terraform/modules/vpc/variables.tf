@@ -6,6 +6,11 @@ variable "project_name" {
 variable "vpc_cidr" {
   type        = string
   description = "CIDR block allocated to this VPC."
+
+  validation {
+    condition     = can(cidrsubnet(var.vpc_cidr, 4, 0))
+    error_message = "vpc_cidr must be a valid IPv4 CIDR that can be carved with newbits=4 (for example 10.40.0.0/16)."
+  }
 }
 
 variable "availability_zones" {

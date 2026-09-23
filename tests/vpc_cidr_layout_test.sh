@@ -71,6 +71,26 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# Guardrail: undersized AZ counts vs subnet carve must fail before apply
+if grep -q 'local.az_count \* 2 <= pow(2, local.subnet_newbits)' \
+  "$ROOT/terraform/modules/vpc/main.tf"; then
+  echo "PASS: VPC subnet capacity precondition present"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing VPC subnet capacity precondition" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: invalid vpc_cidr rejected at variable validation
+if grep -q 'can(cidrsubnet(var.vpc_cidr, 4, 0))' \
+  "$ROOT/terraform/modules/vpc/variables.tf"; then
+  echo "PASS: vpc_cidr cidrsubnet validation present"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing vpc_cidr cidrsubnet validation" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 # Alternate VPC CIDR (common lab default) keeps the same /20 stride pattern
 VPC_CIDR="10.0.0.0/16"
 AZ_COUNT=2
