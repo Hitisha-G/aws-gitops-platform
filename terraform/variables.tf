@@ -27,3 +27,15 @@ variable "enable_nat_gateway" {
   description = "Create a single NAT gateway for private subnet egress."
   default     = true
 }
+
+variable "enable_flow_logs" {
+  type        = bool
+  description = "Enable VPC Flow Logs to CloudWatch Logs."
+  default     = false
+}
+
+variable "flow_logs_retention_days" {
+  type        = number
+  description = "Retention days for VPC Flow Logs in CloudWatch."
+  default     = 14
+}

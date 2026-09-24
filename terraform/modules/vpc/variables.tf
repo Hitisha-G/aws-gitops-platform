@@ -39,3 +39,20 @@ variable "enable_nat_gateway" {
   description = "When true, place one NAT gateway in the first public subnet and route private traffic through it."
   default     = true
 }
+
+variable "enable_flow_logs" {
+  type        = bool
+  description = "When true, send VPC Flow Logs to a dedicated CloudWatch Logs group."
+  default     = false
+}
+
+variable "flow_logs_retention_days" {
+  type        = number
+  description = "Retention period in days for the VPC Flow Logs CloudWatch group."
+  default     = 14
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.flow_logs_retention_days)
+    error_message = "flow_logs_retention_days must be a CloudWatch Logs retention value supported by AWS."
+  }
+}

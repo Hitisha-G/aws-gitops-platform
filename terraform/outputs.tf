@@ -17,3 +17,13 @@ output "nat_gateway_id" {
   description = "NAT gateway ID used by private subnets (null when disabled)."
   value       = module.vpc.nat_gateway_id
 }
+
+output "flow_log_id" {
+  description = "VPC Flow Log ID when flow logs are enabled."
+  value       = module.vpc.flow_log_id
+}
+
+output "flow_log_group_name" {
+  description = "CloudWatch Logs group for VPC Flow Logs when enabled."
+  value       = module.vpc.flow_log_group_name
+}
