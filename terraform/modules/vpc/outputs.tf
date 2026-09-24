@@ -36,3 +36,8 @@ output "flow_log_group_name" {
   description = "CloudWatch Logs group name for VPC Flow Logs when enabled; otherwise null."
   value       = var.enable_flow_logs ? aws_cloudwatch_log_group.flow_logs[0].name : null
 }
+
+output "s3_endpoint_id" {
+  description = "ID of the S3 gateway VPC endpoint when enable_s3_endpoint is true; otherwise null."
+  value       = var.enable_s3_endpoint ? aws_vpc_endpoint.s3[0].id : null
+}

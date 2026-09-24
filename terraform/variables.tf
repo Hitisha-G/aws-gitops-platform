@@ -39,3 +39,9 @@ variable "flow_logs_retention_days" {
   description = "Retention days for VPC Flow Logs in CloudWatch."
   default     = 14
 }
+
+variable "enable_s3_endpoint" {
+  type        = bool
+  description = "Create a gateway VPC endpoint for S3 on the private route table."
+  default     = true
+}

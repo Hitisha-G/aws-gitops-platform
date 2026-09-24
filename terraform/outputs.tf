@@ -27,3 +27,8 @@ output "flow_log_group_name" {
   description = "CloudWatch Logs group for VPC Flow Logs when enabled."
   value       = module.vpc.flow_log_group_name
 }
+
+output "s3_endpoint_id" {
+  description = "S3 gateway VPC endpoint ID when the endpoint is enabled."
+  value       = module.vpc.s3_endpoint_id
+}

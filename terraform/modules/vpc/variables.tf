@@ -56,3 +56,9 @@ variable "flow_logs_retention_days" {
     error_message = "flow_logs_retention_days must be a CloudWatch Logs retention value supported by AWS."
   }
 }
+
+variable "enable_s3_endpoint" {
+  type        = bool
+  description = "When true, create a gateway VPC endpoint for S3 and associate it with the private route table."
+  default     = true
+}
