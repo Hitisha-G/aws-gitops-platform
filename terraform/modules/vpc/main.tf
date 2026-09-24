@@ -222,4 +222,8 @@ resource "aws_flow_log" "this" {
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-vpc-flow-logs"
   })
+
+  # IAM inline policy must exist before AWS starts delivering log events,
+  # otherwise the first apply often fails with AccessDenied on CreateLogStream.
+  depends_on = [aws_iam_role_policy.flow_logs]
 }
