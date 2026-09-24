@@ -114,6 +114,46 @@ for AZ_COUNT in 2 3 4; do
   done
 done
 
+# Containment: every carved /20 must sit inside the parent VPC CIDR
+VPC_CIDR="10.40.0.0/16"
+AZ_COUNT=2
+for i in $(seq 0 $((AZ_COUNT - 1))); do
+  for kind in public private; do
+    if [[ "$kind" == "public" ]]; then
+      block="$(cidrsubnet "$VPC_CIDR" 4 "$i")"
+    else
+      block="$(cidrsubnet "$VPC_CIDR" 4 $((i + AZ_COUNT)))"
+    fi
+    if python3 -c "import ipaddress,sys; parent=ipaddress.ip_network(sys.argv[1]); child=ipaddress.ip_network(sys.argv[2]); sys.exit(0 if child.subnet_of(parent) else 1)" "$VPC_CIDR" "$block"; then
+      echo "PASS: $kind[$i] $block inside $VPC_CIDR"
+      PASS=$((PASS + 1))
+    else
+      echo "FAIL: $kind[$i] $block not inside $VPC_CIDR" >&2
+      FAIL=$((FAIL + 1))
+    fi
+  done
+done
+
+# Guardrail: Flow Logs retention must match AWS-supported CloudWatch values
+if grep -q 'flow_logs_retention_days must be a CloudWatch Logs retention value' \
+  "$ROOT/terraform/modules/vpc/variables.tf"; then
+  echo "PASS: flow_logs_retention_days validation present"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing flow_logs_retention_days validation" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: S3 gateway endpoint is wired to the private route table when enabled
+if grep -q 'aws_vpc_endpoint' "$ROOT/terraform/modules/vpc/main.tf" \
+  && grep -q 'enable_s3_endpoint' "$ROOT/terraform/modules/vpc/main.tf"; then
+  echo "PASS: optional S3 gateway endpoint present in VPC module"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing optional S3 gateway endpoint wiring" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 echo "---"
 echo "passed=$PASS failed=$FAIL"
 [[ "$FAIL" -eq 0 ]]
