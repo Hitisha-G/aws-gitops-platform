@@ -154,6 +154,37 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+
+# Guardrail: optional NAT gateway is count-gated and pins to a stable public subnet
+if grep -q 'resource "aws_nat_gateway" "this"' "$ROOT/terraform/modules/vpc/main.tf" \
+  && grep -q 'count = var.enable_nat_gateway ? 1 : 0' "$ROOT/terraform/modules/vpc/main.tf" \
+  && grep -q 'subnet_id = aws_subnet.public\[sort(keys(local.az_index))\[0\]\].id' "$ROOT/terraform/modules/vpc/main.tf"; then
+  echo "PASS: optional NAT gateway gated and AZ-stable"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing optional NAT gateway wiring or stable AZ pin" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: private default route uses the NAT when enabled
+if grep -q 'resource "aws_route" "private_default"' "$ROOT/terraform/modules/vpc/main.tf" \
+  && grep -q 'nat_gateway_id' "$ROOT/terraform/modules/vpc/main.tf"; then
+  echo "PASS: private default route wires nat_gateway_id"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing private default route via NAT gateway" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: NAT EIP is VPC-scoped and waits on the internet gateway
+if grep -A20 'resource "aws_eip" "nat"' "$ROOT/terraform/modules/vpc/main.tf" | grep -q 'domain = "vpc"'   && grep -A20 'resource "aws_eip" "nat"' "$ROOT/terraform/modules/vpc/main.tf" | grep -q 'depends_on = \[aws_internet_gateway.this\]'; then
+  echo "PASS: NAT EIP is VPC-scoped and depends on internet gateway"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing NAT EIP domain/depends_on wiring" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 echo "---"
 echo "passed=$PASS failed=$FAIL"
 [[ "$FAIL" -eq 0 ]]
