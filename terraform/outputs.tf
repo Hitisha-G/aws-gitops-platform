@@ -32,3 +32,8 @@ output "s3_endpoint_id" {
   description = "S3 gateway VPC endpoint ID when the endpoint is enabled."
   value       = module.vpc.s3_endpoint_id
 }
+
+output "dynamodb_endpoint_id" {
+  description = "DynamoDB gateway VPC endpoint ID when the endpoint is enabled."
+  value       = module.vpc.dynamodb_endpoint_id
+}

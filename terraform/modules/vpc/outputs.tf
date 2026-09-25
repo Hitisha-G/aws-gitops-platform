@@ -41,3 +41,8 @@ output "s3_endpoint_id" {
   description = "ID of the S3 gateway VPC endpoint when enable_s3_endpoint is true; otherwise null."
   value       = var.enable_s3_endpoint ? aws_vpc_endpoint.s3[0].id : null
 }
+
+output "dynamodb_endpoint_id" {
+  description = "ID of the DynamoDB gateway VPC endpoint when enable_dynamodb_endpoint is true; otherwise null."
+  value       = var.enable_dynamodb_endpoint ? aws_vpc_endpoint.dynamodb[0].id : null
+}

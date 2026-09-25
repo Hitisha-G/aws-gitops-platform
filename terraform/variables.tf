@@ -45,3 +45,9 @@ variable "enable_s3_endpoint" {
   description = "Create a gateway VPC endpoint for S3 on the private route table."
   default     = true
 }
+
+variable "enable_dynamodb_endpoint" {
+  type        = bool
+  description = "Create a gateway VPC endpoint for DynamoDB on the private route table."
+  default     = true
+}
