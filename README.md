@@ -6,7 +6,7 @@ Built for platform / DevOps workflows — local-friendly validation first, with 
 
 ## What's in here
 
-- `terraform/` — root stack and reusable modules (VPC first, then EKS/IRSA)
+- `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB endpoints; EKS/IRSA next)
 - `charts/sample-app` — demo workload chart (planned)
 - `.github/workflows/ci.yml` — `terraform fmt` + `validate`, ShellCheck on helper scripts, Helm lint (when charts land)
 - `tests/` — shell unit checks for VPC CIDR carving (run in CI)
@@ -14,14 +14,21 @@ Built for platform / DevOps workflows — local-friendly validation first, with 
 ## Repository layout
 
 ```
+Makefile            # local fmt / init / validate / test / ci helpers
 terraform/
   main.tf           # wires root variables into modules
-  variables.tf      # region, project name, VPC CIDR, AZs, NAT, flow logs
+  variables.tf      # region, project name, VPC CIDR, AZs, NAT, flow logs, endpoints
   providers.tf      # AWS provider
   versions.tf       # required Terraform / provider versions
-  outputs.tf        # stack outputs (VPC, subnets, NAT, flow logs)
+  outputs.tf        # stack outputs (VPC, subnets, NAT, flow logs, endpoints)
+  terraform.tfvars.example
   modules/
-    vpc/            # VPC, public/private subnets, NAT, optional flow logs
+    vpc/
+      main.tf         # VPC, subnets, route tables, NAT
+      flow_logs.tf    # optional CloudWatch Flow Logs + IAM
+      endpoints.tf    # optional S3 / DynamoDB gateway endpoints
+      variables.tf
+      outputs.tf
 tests/
   vpc_cidr_layout_test.sh
 ```
@@ -41,6 +48,8 @@ The `terraform/modules/vpc` module expects:
 | `enable_nat_gateway` | When true (default), place one NAT in the first public subnet and route private `0.0.0.0/0` through it |
 | `enable_flow_logs` | When true, send VPC Flow Logs (ALL traffic) to CloudWatch Logs |
 | `flow_logs_retention_days` | CloudWatch retention for the flow-log group (default `14`) |
+| `enable_s3_endpoint` | When true (default), attach a gateway VPC endpoint for S3 to the private route table |
+| `enable_dynamodb_endpoint` | When true (default), attach a gateway VPC endpoint for DynamoDB to the private route table |
 
 Shared tag and CIDR locals live in the module so subnet math and tagging stay consistent as more modules are added. Public and private subnets use `for_each` keyed by AZ name so reordering the AZ list does not force needless replacements.
 
@@ -61,7 +70,23 @@ The flow-log resource depends on the IAM policy so the first apply does not race
 
 Useful root outputs when enabled: `flow_log_id`, `flow_log_group_name`, plus `nat_gateway_id` when NAT is on.
 
+### Gateway VPC endpoints
+
+Private workloads often pull from S3 or DynamoDB. Gateway endpoints keep that traffic on the AWS network and avoid NAT charges for those prefixes.
+
+When `enable_s3_endpoint` or `enable_dynamodb_endpoint` is true, the module creates the matching `aws_vpc_endpoint` (type `Gateway`) in the current region and associates it with the private route table. Both flags default to true so a fresh apply gets private access without extra knobs; set either to false if a lab stack should skip that service.
+
+Endpoints live in `terraform/modules/vpc/endpoints.tf`, separate from networking and flow-log resources, so reviews stay focused when you only change egress or logging.
+
 ## Quick start
+
+With Make (preferred locally):
+
+```bash
+make ci
+```
+
+Or the Terraform steps by hand:
 
 ```bash
 cd terraform
@@ -70,10 +95,11 @@ terraform fmt -check -recursive
 terraform validate
 ```
 
-Optional: run the CIDR layout unit tests locally:
+Copy `terraform/terraform.tfvars.example` when you want named values for a lab apply. Optional unit tests:
 
 ```bash
-bash tests/vpc_cidr_layout_test.sh
+make test
+# or: bash tests/vpc_cidr_layout_test.sh
 ```
 
 CI runs fmt, validate, and those shell checks on every push to `main`.
@@ -81,7 +107,7 @@ CI runs fmt, validate, and those shell checks on every push to `main`.
 ## Roadmap
 
 - [x] Repo scaffold + CI
-- [x] VPC module (subnets, NAT, optional flow logs)
+- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints)
 - [ ] EKS module + IRSA stubs
 - [ ] Sample app Helm chart
 - [ ] Docs: OIDC deploy from GitHub Actions
