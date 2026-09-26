@@ -189,6 +189,17 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# Guardrail: Flow Logs assume role requires aws:SourceAccount (confused-deputy)
+if grep -q 'data "aws_iam_policy_document" "flow_logs_assume"' "$ROOT/terraform/modules/vpc/flow_logs.tf" \
+  && grep -A40 'data "aws_iam_policy_document" "flow_logs_assume"' "$ROOT/terraform/modules/vpc/flow_logs.tf" \
+    | grep -q 'aws:SourceAccount'; then
+  echo "PASS: Flow Logs assume role requires aws:SourceAccount"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing aws:SourceAccount on Flow Logs assume role" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 # Guardrail: private default route uses the NAT when enabled
 if grep -q 'resource "aws_route" "private_default"' "$ROOT/terraform/modules/vpc/main.tf" \
   && grep -q 'nat_gateway_id' "$ROOT/terraform/modules/vpc/main.tf"; then
