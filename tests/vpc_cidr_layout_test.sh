@@ -219,6 +219,19 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+
+# Guardrail: optional SSM interface endpoint + HTTPS SG for private Session Manager
+if grep -q 'resource "aws_vpc_endpoint" "ssm"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'count = var.enable_ssm_endpoint ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'vpc_endpoint_type.*=.*"Interface"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'resource "aws_security_group" "vpc_endpoints"' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: optional SSM interface endpoint and endpoint SG present"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing optional SSM interface endpoint wiring" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 echo "---"
 echo "passed=$PASS failed=$FAIL"
 [[ "$FAIL" -eq 0 ]]

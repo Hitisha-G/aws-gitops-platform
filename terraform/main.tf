@@ -9,6 +9,7 @@ module "vpc" {
   flow_logs_retention_days = var.flow_logs_retention_days
   enable_s3_endpoint       = var.enable_s3_endpoint
   enable_dynamodb_endpoint = var.enable_dynamodb_endpoint
+  enable_ssm_endpoint      = var.enable_ssm_endpoint
 
   tags = {
     ManagedBy = "terraform"

@@ -26,7 +26,7 @@ terraform/
     vpc/
       main.tf         # VPC, subnets, route tables, NAT
       flow_logs.tf    # optional CloudWatch Flow Logs + IAM
-      endpoints.tf    # optional S3 / DynamoDB gateway endpoints
+      endpoints.tf    # optional S3 / DynamoDB gateway + SSM interface endpoints
       variables.tf
       outputs.tf
 tests/
@@ -50,6 +50,7 @@ The `terraform/modules/vpc` module expects:
 | `flow_logs_retention_days` | CloudWatch retention for the flow-log group (default `14`) |
 | `enable_s3_endpoint` | When true (default), attach a gateway VPC endpoint for S3 to the private route table |
 | `enable_dynamodb_endpoint` | When true (default), attach a gateway VPC endpoint for DynamoDB to the private route table |
+| `enable_ssm_endpoint` | When true, place an interface VPC endpoint for SSM in private subnets (default false; hourly charge) |
 
 Shared tag and CIDR locals live in the module so subnet math and tagging stay consistent as more modules are added. Public and private subnets use `for_each` keyed by AZ name so reordering the AZ list does not force needless replacements.
 
@@ -77,6 +78,10 @@ Private workloads often pull from S3 or DynamoDB. Gateway endpoints keep that tr
 When `enable_s3_endpoint` or `enable_dynamodb_endpoint` is true, the module creates the matching `aws_vpc_endpoint` (type `Gateway`) in the current region and associates it with the private route table. Both flags default to true so a fresh apply gets private access without extra knobs; set either to false if a lab stack should skip that service.
 
 Endpoints live in `terraform/modules/vpc/endpoints.tf`, separate from networking and flow-log resources, so reviews stay focused when you only change egress or logging.
+
+### SSM interface endpoint
+
+Set `enable_ssm_endpoint = true` to add an Interface endpoint for `ssm` in every private subnet, plus a dedicated security group that allows HTTPS (443) from the VPC CIDR. Private DNS stays enabled so instances resolve the regional SSM API over the endpoint. Off by default because interface endpoints incur an hourly charge; turn it on when you want Session Manager without a bastion.
 
 ## Quick start
 
@@ -107,7 +112,7 @@ CI runs fmt, validate, and those shell checks on every push to `main`.
 ## Roadmap
 
 - [x] Repo scaffold + CI
-- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints)
+- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints, optional SSM interface endpoint)
 - [ ] EKS module + IRSA stubs
 - [ ] Sample app Helm chart
 - [ ] Docs: OIDC deploy from GitHub Actions

@@ -46,3 +46,13 @@ output "dynamodb_endpoint_id" {
   description = "ID of the DynamoDB gateway VPC endpoint when enable_dynamodb_endpoint is true; otherwise null."
   value       = var.enable_dynamodb_endpoint ? aws_vpc_endpoint.dynamodb[0].id : null
 }
+
+output "ssm_endpoint_id" {
+  description = "ID of the SSM interface VPC endpoint when enable_ssm_endpoint is true; otherwise null."
+  value       = var.enable_ssm_endpoint ? aws_vpc_endpoint.ssm[0].id : null
+}
+
+output "vpc_endpoints_security_group_id" {
+  description = "Security group ID used by interface VPC endpoints when SSM endpoint is enabled; otherwise null."
+  value       = var.enable_ssm_endpoint ? aws_security_group.vpc_endpoints[0].id : null
+}

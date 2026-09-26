@@ -68,3 +68,9 @@ variable "enable_dynamodb_endpoint" {
   description = "When true, create a gateway VPC endpoint for DynamoDB and associate it with the private route table."
   default     = true
 }
+
+variable "enable_ssm_endpoint" {
+  type        = bool
+  description = "When true, create an interface VPC endpoint for SSM in private subnets (Session Manager without a bastion)."
+  default     = false
+}

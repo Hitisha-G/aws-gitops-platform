@@ -51,3 +51,9 @@ variable "enable_dynamodb_endpoint" {
   description = "Create a gateway VPC endpoint for DynamoDB on the private route table."
   default     = true
 }
+
+variable "enable_ssm_endpoint" {
+  type        = bool
+  description = "Create an interface VPC endpoint for SSM in private subnets."
+  default     = false
+}
