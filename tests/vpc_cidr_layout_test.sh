@@ -144,25 +144,48 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-# Guardrail: S3 gateway endpoint is wired to the private route table when enabled
-if grep -q 'aws_vpc_endpoint' "$ROOT/terraform/modules/vpc/main.tf" \
-  && grep -q 'enable_s3_endpoint' "$ROOT/terraform/modules/vpc/main.tf"; then
-  echo "PASS: optional S3 gateway endpoint present in VPC module"
+# Guardrail: S3 gateway endpoint lives in endpoints.tf and attaches to the private RT
+if grep -q 'resource "aws_vpc_endpoint" "s3"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'count = var.enable_s3_endpoint ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'route_table_ids.*=.*\[aws_route_table.private.id\]' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: optional S3 gateway endpoint present in endpoints.tf"
   PASS=$((PASS + 1))
 else
-  echo "FAIL: missing optional S3 gateway endpoint wiring" >&2
+  echo "FAIL: missing optional S3 gateway endpoint wiring in endpoints.tf" >&2
   FAIL=$((FAIL + 1))
 fi
 
+# Guardrail: DynamoDB gateway endpoint mirrors S3 (private RT, count-gated)
+if grep -q 'resource "aws_vpc_endpoint" "dynamodb"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'count = var.enable_dynamodb_endpoint ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -A20 'resource "aws_vpc_endpoint" "dynamodb"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+    | grep -q 'route_table_ids.*=.*\[aws_route_table.private.id\]'; then
+  echo "PASS: optional DynamoDB gateway endpoint present in endpoints.tf"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing optional DynamoDB gateway endpoint wiring" >&2
+  FAIL=$((FAIL + 1))
+fi
 
-# Guardrail: optional NAT gateway is count-gated and pins to a stable public subnet
+# Guardrail: optional NAT gateway is count-gated and pins to primary public AZ
 if grep -q 'resource "aws_nat_gateway" "this"' "$ROOT/terraform/modules/vpc/main.tf" \
   && grep -q 'count = var.enable_nat_gateway ? 1 : 0' "$ROOT/terraform/modules/vpc/main.tf" \
-  && grep -q 'subnet_id = aws_subnet.public\[sort(keys(local.az_index))\[0\]\].id' "$ROOT/terraform/modules/vpc/main.tf"; then
+  && grep -q 'subnet_id = aws_subnet.public\[local.primary_public_az\].id' "$ROOT/terraform/modules/vpc/main.tf"; then
   echo "PASS: optional NAT gateway gated and AZ-stable"
   PASS=$((PASS + 1))
 else
   echo "FAIL: missing optional NAT gateway wiring or stable AZ pin" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: Flow Logs resource waits on the IAM publish policy (avoids first-apply race)
+if grep -q 'resource "aws_flow_log" "this"' "$ROOT/terraform/modules/vpc/flow_logs.tf" \
+  && grep -A30 'resource "aws_flow_log" "this"' "$ROOT/terraform/modules/vpc/flow_logs.tf" \
+    | grep -q 'depends_on = \[aws_iam_role_policy.flow_logs\]'; then
+  echo "PASS: Flow Logs depends on IAM publish policy"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing Flow Logs depends_on for IAM publish policy" >&2
   FAIL=$((FAIL + 1))
 fi
 
