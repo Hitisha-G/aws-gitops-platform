@@ -244,6 +244,44 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# Guardrail: SSM interface endpoints enable private DNS and land in private subnets
+ssm_block="$(grep -A20 'resource "aws_vpc_endpoint" "ssm"' "$ROOT/terraform/modules/vpc/endpoints.tf")"
+if echo "$ssm_block" | grep -q 'private_dns_enabled.*=.*true' \
+  && echo "$ssm_block" | grep -q 'aws_subnet.private' \
+  && echo "$ssm_block" | grep -q 'security_group_ids.*=.*\[aws_security_group.vpc_endpoints\[0\].id\]'; then
+  echo "PASS: SSM interface endpoint uses private DNS, private subnets, and endpoint SG"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: SSM interface endpoint missing private DNS / private subnet / SG wiring" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: ssmmessages and ec2messages mirror SSM placement (private DNS + private subnets + shared SG)
+for ep in ssmmessages ec2messages; do
+  block="$(grep -A20 "resource \"aws_vpc_endpoint\" \"$ep\"" "$ROOT/terraform/modules/vpc/endpoints.tf")"
+  if echo "$block" | grep -q 'private_dns_enabled.*=.*true' \
+    && echo "$block" | grep -q 'aws_subnet.private' \
+    && echo "$block" | grep -q 'security_group_ids.*=.*\[aws_security_group.vpc_endpoints\[0\].id\]'; then
+    echo "PASS: $ep interface endpoint mirrors SSM private DNS/subnet/SG wiring"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: $ep interface endpoint missing private DNS / private subnet / SG wiring" >&2
+    FAIL=$((FAIL + 1))
+  fi
+done
+
+# Guardrail: endpoint SG allows HTTPS from the VPC CIDR only (Session Manager control plane)
+sg_block="$(grep -A40 'resource "aws_security_group" "vpc_endpoints"' "$ROOT/terraform/modules/vpc/endpoints.tf")"
+if echo "$sg_block" | grep -q 'from_port.*=.*443' \
+  && echo "$sg_block" | grep -q 'to_port.*=.*443' \
+  && echo "$sg_block" | grep -q 'cidr_blocks.*=.*\[var.vpc_cidr\]'; then
+  echo "PASS: VPC endpoint SG restricts HTTPS to VPC CIDR"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: VPC endpoint SG missing HTTPS-from-VPC CIDR restriction" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 echo "---"
 echo "passed=$PASS failed=$FAIL"
 [[ "$FAIL" -eq 0 ]]
