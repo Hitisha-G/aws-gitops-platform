@@ -52,6 +52,16 @@ output "ssm_endpoint_id" {
   value       = var.enable_ssm_endpoint ? aws_vpc_endpoint.ssm[0].id : null
 }
 
+output "ssmmessages_endpoint_id" {
+  description = "ID of the ssmmessages interface VPC endpoint when enable_ssm_endpoint is true; otherwise null."
+  value       = var.enable_ssm_endpoint ? aws_vpc_endpoint.ssmmessages[0].id : null
+}
+
+output "ec2messages_endpoint_id" {
+  description = "ID of the ec2messages interface VPC endpoint when enable_ssm_endpoint is true; otherwise null."
+  value       = var.enable_ssm_endpoint ? aws_vpc_endpoint.ec2messages[0].id : null
+}
+
 output "vpc_endpoints_security_group_id" {
   description = "Security group ID used by interface VPC endpoints when SSM endpoint is enabled; otherwise null."
   value       = var.enable_ssm_endpoint ? aws_security_group.vpc_endpoints[0].id : null

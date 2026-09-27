@@ -54,6 +54,6 @@ variable "enable_dynamodb_endpoint" {
 
 variable "enable_ssm_endpoint" {
   type        = bool
-  description = "Create an interface VPC endpoint for SSM in private subnets."
+  description = "Create interface VPC endpoints for ssm, ssmmessages, and ec2messages in private subnets."
   default     = false
 }

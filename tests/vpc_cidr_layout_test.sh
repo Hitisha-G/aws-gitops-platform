@@ -170,7 +170,7 @@ fi
 # Guardrail: optional NAT gateway is count-gated and pins to primary public AZ
 if grep -q 'resource "aws_nat_gateway" "this"' "$ROOT/terraform/modules/vpc/main.tf" \
   && grep -q 'count = var.enable_nat_gateway ? 1 : 0' "$ROOT/terraform/modules/vpc/main.tf" \
-  && grep -q 'subnet_id = aws_subnet.public\[local.primary_public_az\].id' "$ROOT/terraform/modules/vpc/main.tf"; then
+  && grep -Eq 'subnet_id[[:space:]]*=[[:space:]]*aws_subnet\.public\[local\.primary_public_az\]\.id' "$ROOT/terraform/modules/vpc/main.tf"; then
   echo "PASS: optional NAT gateway gated and AZ-stable"
   PASS=$((PASS + 1))
 else
@@ -229,6 +229,18 @@ if grep -q 'resource "aws_vpc_endpoint" "ssm"' "$ROOT/terraform/modules/vpc/endp
   PASS=$((PASS + 1))
 else
   echo "FAIL: missing optional SSM interface endpoint wiring" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: Session Manager needs ssmmessages + ec2messages alongside ssm
+if grep -q 'resource "aws_vpc_endpoint" "ssmmessages"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'resource "aws_vpc_endpoint" "ec2messages"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'ssmmessages' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'ec2messages' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: ssmmessages and ec2messages interface endpoints present"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing ssmmessages/ec2messages endpoints for Session Manager" >&2
   FAIL=$((FAIL + 1))
 fi
 

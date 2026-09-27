@@ -50,7 +50,7 @@ The `terraform/modules/vpc` module expects:
 | `flow_logs_retention_days` | CloudWatch retention for the flow-log group (default `14`) |
 | `enable_s3_endpoint` | When true (default), attach a gateway VPC endpoint for S3 to the private route table |
 | `enable_dynamodb_endpoint` | When true (default), attach a gateway VPC endpoint for DynamoDB to the private route table |
-| `enable_ssm_endpoint` | When true, place an interface VPC endpoint for SSM in private subnets (default false; hourly charge) |
+| `enable_ssm_endpoint` | When true, place interface VPC endpoints for ssm, ssmmessages, and ec2messages in private subnets (default false; hourly charge) |
 
 Shared tag and CIDR locals live in the module so subnet math and tagging stay consistent as more modules are added. Public and private subnets use `for_each` keyed by AZ name so reordering the AZ list does not force needless replacements.
 
@@ -81,7 +81,7 @@ Endpoints live in `terraform/modules/vpc/endpoints.tf`, separate from networking
 
 ### SSM interface endpoint
 
-Set `enable_ssm_endpoint = true` to add an Interface endpoint for `ssm` in every private subnet, plus a dedicated security group that allows HTTPS (443) from the VPC CIDR. Private DNS stays enabled so instances resolve the regional SSM API over the endpoint. Off by default because interface endpoints incur an hourly charge; turn it on when you want Session Manager without a bastion.
+Set `enable_ssm_endpoint = true` to add Interface endpoints for `ssm`, `ssmmessages`, and `ec2messages` in every private subnet, plus a dedicated security group that allows HTTPS (443) within the VPC CIDR. Private DNS stays enabled so instances resolve the regional Session Manager APIs over the endpoints. All three services are required for Session Manager; the earlier `ssm`-only wiring left agent traffic incomplete. Off by default because interface endpoints incur an hourly charge; turn it on when you want Session Manager without a bastion.
 
 ## Quick start
 

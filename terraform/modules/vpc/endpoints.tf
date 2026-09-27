@@ -42,11 +42,11 @@ resource "aws_security_group" "vpc_endpoints" {
   }
 
   egress {
-    description = "Allow all egress"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTPS to VPC endpoint ENIs"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = merge(local.common_tags, {
@@ -72,5 +72,39 @@ resource "aws_vpc_endpoint" "ssm" {
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-ssm-endpoint"
+  })
+}
+
+resource "aws_vpc_endpoint" "ssmmessages" {
+  count = var.enable_ssm_endpoint ? 1 : 0
+
+  vpc_id              = aws_vpc.this.id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.ssmmessages"
+  vpc_endpoint_type   = "Interface"
+  private_dns_enabled = true
+  subnet_ids = [
+    for az in var.availability_zones : aws_subnet.private[az].id
+  ]
+  security_group_ids = [aws_security_group.vpc_endpoints[0].id]
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-ssmmessages-endpoint"
+  })
+}
+
+resource "aws_vpc_endpoint" "ec2messages" {
+  count = var.enable_ssm_endpoint ? 1 : 0
+
+  vpc_id              = aws_vpc.this.id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.ec2messages"
+  vpc_endpoint_type   = "Interface"
+  private_dns_enabled = true
+  subnet_ids = [
+    for az in var.availability_zones : aws_subnet.private[az].id
+  ]
+  security_group_ids = [aws_security_group.vpc_endpoints[0].id]
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-ec2messages-endpoint"
   })
 }
