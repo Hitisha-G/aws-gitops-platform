@@ -3,7 +3,17 @@ name: ci
 on:
   push:
     branches: [main]
+    paths:
+      - "terraform/**"
+      - "tests/**"
+      - "Makefile"
+      - ".github/workflows/ci.yml"
   pull_request:
+    paths:
+      - "terraform/**"
+      - "tests/**"
+      - "Makefile"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 concurrency:
@@ -12,6 +22,10 @@ concurrency:
 
 permissions:
   contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
 
 jobs:
   unit:
@@ -25,7 +39,7 @@ jobs:
           sudo apt-get install -y -qq shellcheck
           shellcheck tests/*.sh
       - name: VPC CIDR layout tests
-        run: bash tests/vpc_cidr_layout_test.sh
+        run: make test
 
   terraform:
     runs-on: ubuntu-latest
@@ -46,6 +60,14 @@ jobs:
         if: steps.check.outputs.present == 'true'
         with:
           terraform_version: "1.9.8"
+      - name: Cache Terraform providers
+        if: steps.check.outputs.present == 'true'
+        uses: actions/cache@v4
+        with:
+          path: terraform/.terraform
+          key: tf-providers-${{ runner.os }}-${{ hashFiles('terraform/.terraform.lock.hcl', 'terraform/**/*.tf') }}
+          restore-keys: |
+            tf-providers-${{ runner.os }}-
       - name: Terraform fmt
         if: steps.check.outputs.present == 'true'
         working-directory: terraform
