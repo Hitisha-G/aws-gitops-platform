@@ -282,6 +282,42 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# Guardrail: optional ECR interface endpoints (api + dkr) for private image pulls
+if grep -q 'resource "aws_vpc_endpoint" "ecr_api"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'resource "aws_vpc_endpoint" "ecr_dkr"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'count = var.enable_ecr_endpoint ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'ecr.api' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'ecr.dkr' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: optional ECR api/dkr interface endpoints present"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing optional ECR api/dkr interface endpoint wiring" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: ECR endpoints use private DNS, private subnets, and shared endpoint SG
+for ep in ecr_api ecr_dkr; do
+  block="$(grep -A20 "resource \"aws_vpc_endpoint\" \"$ep\"" "$ROOT/terraform/modules/vpc/endpoints.tf")"
+  if echo "$block" | grep -q 'private_dns_enabled.*=.*true' \
+    && echo "$block" | grep -q 'aws_subnet.private' \
+    && echo "$block" | grep -q 'security_group_ids.*=.*\[aws_security_group.vpc_endpoints\[0\].id\]'; then
+    echo "PASS: $ep interface endpoint uses private DNS, private subnets, and endpoint SG"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: $ep interface endpoint missing private DNS / private subnet / SG wiring" >&2
+    FAIL=$((FAIL + 1))
+  fi
+done
+
+# Guardrail: VPC endpoint SG is created when SSM or ECR endpoints are enabled
+if grep -q 'count = (var.enable_ssm_endpoint || var.enable_ecr_endpoint) ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: endpoint SG count gates on SSM or ECR enable flags"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: endpoint SG count missing ECR enable flag" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 echo "---"
 echo "passed=$PASS failed=$FAIL"
 [[ "$FAIL" -eq 0 ]]
