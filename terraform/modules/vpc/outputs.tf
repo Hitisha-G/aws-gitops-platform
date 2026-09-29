@@ -63,6 +63,16 @@ output "ec2messages_endpoint_id" {
 }
 
 output "vpc_endpoints_security_group_id" {
-  description = "Security group ID used by interface VPC endpoints when SSM endpoint is enabled; otherwise null."
-  value       = var.enable_ssm_endpoint ? aws_security_group.vpc_endpoints[0].id : null
+  description = "Security group ID used by interface VPC endpoints when SSM or ECR endpoints are enabled; otherwise null."
+  value       = (var.enable_ssm_endpoint || var.enable_ecr_endpoint) ? aws_security_group.vpc_endpoints[0].id : null
+}
+
+output "ecr_api_endpoint_id" {
+  description = "ID of the ECR API interface VPC endpoint when enable_ecr_endpoint is true; otherwise null."
+  value       = var.enable_ecr_endpoint ? aws_vpc_endpoint.ecr_api[0].id : null
+}
+
+output "ecr_dkr_endpoint_id" {
+  description = "ID of the ECR DKR interface VPC endpoint when enable_ecr_endpoint is true; otherwise null."
+  value       = var.enable_ecr_endpoint ? aws_vpc_endpoint.ecr_dkr[0].id : null
 }

@@ -74,3 +74,9 @@ variable "enable_ssm_endpoint" {
   description = "When true, create interface VPC endpoints for ssm, ssmmessages, and ec2messages in private subnets (Session Manager without a bastion)."
   default     = false
 }
+
+variable "enable_ecr_endpoint" {
+  type        = bool
+  description = "When true, create interface VPC endpoints for ecr.api and ecr.dkr in private subnets (private image pulls without NAT)."
+  default     = false
+}

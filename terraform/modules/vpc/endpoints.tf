@@ -27,7 +27,7 @@ resource "aws_vpc_endpoint" "dynamodb" {
 }
 
 resource "aws_security_group" "vpc_endpoints" {
-  count = var.enable_ssm_endpoint ? 1 : 0
+  count = (var.enable_ssm_endpoint || var.enable_ecr_endpoint) ? 1 : 0
 
   name_prefix = "${local.name_prefix}-vpce-"
   description = "HTTPS from the VPC to interface VPC endpoints"
@@ -106,5 +106,39 @@ resource "aws_vpc_endpoint" "ec2messages" {
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-ec2messages-endpoint"
+  })
+}
+
+resource "aws_vpc_endpoint" "ecr_api" {
+  count = var.enable_ecr_endpoint ? 1 : 0
+
+  vpc_id              = aws_vpc.this.id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.ecr.api"
+  vpc_endpoint_type   = "Interface"
+  private_dns_enabled = true
+  subnet_ids = [
+    for az in var.availability_zones : aws_subnet.private[az].id
+  ]
+  security_group_ids = [aws_security_group.vpc_endpoints[0].id]
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-ecr-api-endpoint"
+  })
+}
+
+resource "aws_vpc_endpoint" "ecr_dkr" {
+  count = var.enable_ecr_endpoint ? 1 : 0
+
+  vpc_id              = aws_vpc.this.id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.ecr.dkr"
+  vpc_endpoint_type   = "Interface"
+  private_dns_enabled = true
+  subnet_ids = [
+    for az in var.availability_zones : aws_subnet.private[az].id
+  ]
+  security_group_ids = [aws_security_group.vpc_endpoints[0].id]
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-ecr-dkr-endpoint"
   })
 }

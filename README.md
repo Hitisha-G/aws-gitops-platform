@@ -6,7 +6,7 @@ Built for platform / DevOps workflows — local-friendly validation first, with 
 
 ## What's in here
 
-- `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB endpoints; EKS/IRSA next)
+- `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB/SSM/ECR endpoints; EKS/IRSA next)
 - `charts/sample-app` — demo workload chart (planned)
 - `.github/workflows/ci.yml` — `terraform fmt` + `validate`, ShellCheck on helper scripts, Helm lint (when charts land)
 - `tests/` — shell unit checks for VPC CIDR carving (run in CI)
@@ -26,7 +26,7 @@ terraform/
     vpc/
       main.tf         # VPC, subnets, route tables, NAT
       flow_logs.tf    # optional CloudWatch Flow Logs + IAM
-      endpoints.tf    # optional S3 / DynamoDB gateway + SSM interface endpoints
+      endpoints.tf    # optional S3 / DynamoDB gateway + SSM / ECR interface endpoints
       variables.tf
       outputs.tf
 tests/
@@ -51,6 +51,7 @@ The `terraform/modules/vpc` module expects:
 | `enable_s3_endpoint` | When true (default), attach a gateway VPC endpoint for S3 to the private route table |
 | `enable_dynamodb_endpoint` | When true (default), attach a gateway VPC endpoint for DynamoDB to the private route table |
 | `enable_ssm_endpoint` | When true, place interface VPC endpoints for ssm, ssmmessages, and ec2messages in private subnets (default false; hourly charge) |
+| `enable_ecr_endpoint` | When true, place interface VPC endpoints for ecr.api and ecr.dkr in private subnets (default false; hourly charge; pair with S3 gateway for layer pulls) |
 
 Shared tag and CIDR locals live in the module so subnet math and tagging stay consistent as more modules are added. Public and private subnets use `for_each` keyed by AZ name so reordering the AZ list does not force needless replacements.
 
@@ -83,6 +84,11 @@ Endpoints live in `terraform/modules/vpc/endpoints.tf`, separate from networking
 
 Set `enable_ssm_endpoint = true` to add Interface endpoints for `ssm`, `ssmmessages`, and `ec2messages` in every private subnet, plus a dedicated security group that allows HTTPS (443) within the VPC CIDR. Private DNS stays enabled so instances resolve the regional Session Manager APIs over the endpoints. All three services are required for Session Manager; the earlier `ssm`-only wiring left agent traffic incomplete. Off by default because interface endpoints incur an hourly charge; turn it on when you want Session Manager without a bastion.
 
+### ECR interface endpoints
+
+Set `enable_ecr_endpoint = true` to add Interface endpoints for `ecr.api` and `ecr.dkr` in every private subnet, reusing the same HTTPS security group as SSM when both are enabled. Private DNS stays on so nodes resolve the regional ECR APIs over the VPC. Keep `enable_s3_endpoint = true` as well: image layers still come from S3, and the gateway endpoint avoids NAT for those pulls. Off by default because interface endpoints incur an hourly charge.
+
+
 ## Quick start
 
 With Make (preferred locally):
@@ -112,7 +118,7 @@ CI runs fmt, validate, and those shell checks on every push to `main`.
 ## Roadmap
 
 - [x] Repo scaffold + CI
-- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints, optional SSM interface endpoint)
+- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints, optional SSM/ECR interface endpoints)
 - [ ] EKS module + IRSA stubs
 - [ ] Sample app Helm chart
 - [ ] Docs: OIDC deploy from GitHub Actions

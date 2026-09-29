@@ -10,6 +10,7 @@ module "vpc" {
   enable_s3_endpoint       = var.enable_s3_endpoint
   enable_dynamodb_endpoint = var.enable_dynamodb_endpoint
   enable_ssm_endpoint      = var.enable_ssm_endpoint
+  enable_ecr_endpoint      = var.enable_ecr_endpoint
 
   tags = {
     ManagedBy = "terraform"

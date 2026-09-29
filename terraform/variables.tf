@@ -57,3 +57,9 @@ variable "enable_ssm_endpoint" {
   description = "Create interface VPC endpoints for ssm, ssmmessages, and ec2messages in private subnets."
   default     = false
 }
+
+variable "enable_ecr_endpoint" {
+  type        = bool
+  description = "Create interface VPC endpoints for ecr.api and ecr.dkr in private subnets."
+  default     = false
+}

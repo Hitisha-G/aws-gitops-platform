@@ -9,3 +9,4 @@ flow_logs_retention_days = 14
 enable_s3_endpoint       = true
 enable_dynamodb_endpoint = true
 enable_ssm_endpoint      = false
+enable_ecr_endpoint      = false
