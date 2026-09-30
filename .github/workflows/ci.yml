@@ -60,6 +60,7 @@ jobs:
         if: steps.check.outputs.present == 'true'
         with:
           terraform_version: "1.9.8"
+          terraform_wrapper: false
       - name: Cache Terraform providers
         if: steps.check.outputs.present == 'true'
         uses: actions/cache@v4
@@ -84,6 +85,14 @@ jobs:
         if: steps.check.outputs.present == 'true'
         with:
           tflint_version: v0.53.0
+      - name: Cache TFLint plugins
+        if: steps.check.outputs.present == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ runner.os }}-${{ hashFiles('terraform/**/.tflint.hcl') }}
+          restore-keys: |
+            tflint-${{ runner.os }}-
       - name: TFLint init
         if: steps.check.outputs.present == 'true'
         working-directory: terraform
