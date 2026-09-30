@@ -57,3 +57,8 @@ output "ecr_dkr_endpoint_id" {
   description = "ECR DKR interface VPC endpoint ID when the endpoint is enabled."
   value       = module.vpc.ecr_dkr_endpoint_id
 }
+
+output "logs_endpoint_id" {
+  description = "CloudWatch Logs interface VPC endpoint ID when the endpoint is enabled."
+  value       = module.vpc.logs_endpoint_id
+}

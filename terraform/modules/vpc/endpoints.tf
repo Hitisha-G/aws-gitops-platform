@@ -16,6 +16,9 @@ locals {
     var.enable_ecr_endpoint ? {
       ecr_api = "ecr.api"
       ecr_dkr = "ecr.dkr"
+    } : {},
+    var.enable_logs_endpoint ? {
+      logs = "logs"
     } : {}
   )
 }

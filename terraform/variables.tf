@@ -63,3 +63,9 @@ variable "enable_ecr_endpoint" {
   description = "Create interface VPC endpoints for ecr.api and ecr.dkr in private subnets."
   default     = false
 }
+
+variable "enable_logs_endpoint" {
+  type        = bool
+  description = "Create an interface VPC endpoint for CloudWatch Logs in private subnets."
+  default     = false
+}

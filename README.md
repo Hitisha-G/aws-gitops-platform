@@ -6,7 +6,7 @@ Built for platform / DevOps workflows — local-friendly validation first, with 
 
 ## What's in here
 
-- `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB/SSM/ECR endpoints; EKS/IRSA next)
+- `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB/SSM/ECR/Logs endpoints; EKS/IRSA next)
 - `charts/sample-app` — demo workload chart (planned)
 - `.github/workflows/ci.yml` — `terraform fmt` + `validate`, ShellCheck on helper scripts, Helm lint (when charts land)
 - `tests/` — shell unit checks for VPC CIDR carving (run in CI)
@@ -26,7 +26,7 @@ terraform/
     vpc/
       main.tf         # VPC, subnets, route tables, NAT
       flow_logs.tf    # optional CloudWatch Flow Logs + IAM
-      endpoints.tf    # optional S3 / DynamoDB gateway + SSM / ECR interface endpoints
+      endpoints.tf    # optional S3 / DynamoDB gateway + SSM / ECR / Logs interface endpoints
       variables.tf
       outputs.tf
 tests/
@@ -52,6 +52,7 @@ The `terraform/modules/vpc` module expects:
 | `enable_dynamodb_endpoint` | When true (default), attach a gateway VPC endpoint for DynamoDB to the private route table |
 | `enable_ssm_endpoint` | When true, place interface VPC endpoints for ssm, ssmmessages, and ec2messages in private subnets (default false; hourly charge) |
 | `enable_ecr_endpoint` | When true, place interface VPC endpoints for ecr.api and ecr.dkr in private subnets (default false; hourly charge; pair with S3 gateway for layer pulls) |
+| `enable_logs_endpoint` | When true, place an interface VPC endpoint for CloudWatch Logs in private subnets (default false; hourly charge; private log shipping without NAT) |
 
 Shared tag and CIDR locals live in the module so subnet math and tagging stay consistent as more modules are added. Public and private subnets use `for_each` keyed by AZ name so reordering the AZ list does not force needless replacements.
 
@@ -87,6 +88,12 @@ Set `enable_ssm_endpoint = true` to add Interface endpoints for `ssm`, `ssmmessa
 ### ECR interface endpoints
 
 Set `enable_ecr_endpoint = true` to add Interface endpoints for `ecr.api` and `ecr.dkr` in every private subnet, reusing the same HTTPS security group as SSM when both are enabled. Private DNS stays on so nodes resolve the regional ECR APIs over the VPC. Keep `enable_s3_endpoint = true` as well: image layers still come from S3, and the gateway endpoint avoids NAT for those pulls. Off by default because interface endpoints incur an hourly charge.
+
+### CloudWatch Logs interface endpoint
+
+Set `enable_logs_endpoint = true` to add an Interface endpoint for `logs` in every private subnet, reusing the same HTTPS security group as SSM/ECR when those are enabled. Private DNS stays on so agents and sidecars resolve the regional CloudWatch Logs API over the VPC. Useful when private workloads (or Flow Logs exporters) should ship logs without hairpinning through NAT. Off by default because interface endpoints incur an hourly charge.
+
+
 
 
 ## Quick start
