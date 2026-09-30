@@ -1,5 +1,25 @@
 data "aws_region" "current" {}
 
+locals {
+  # Shared private-subnet placement for every interface endpoint.
+  private_subnet_ids = [
+    for az in var.availability_zones : aws_subnet.private[az].id
+  ]
+
+  # Interface services keyed by stable name; toggled by feature flags.
+  interface_endpoint_services = merge(
+    var.enable_ssm_endpoint ? {
+      ssm         = "ssm"
+      ssmmessages = "ssmmessages"
+      ec2messages = "ec2messages"
+    } : {},
+    var.enable_ecr_endpoint ? {
+      ecr_api = "ecr.api"
+      ecr_dkr = "ecr.dkr"
+    } : {}
+  )
+}
+
 resource "aws_vpc_endpoint" "s3" {
   count = var.enable_s3_endpoint ? 1 : 0
 
@@ -27,7 +47,7 @@ resource "aws_vpc_endpoint" "dynamodb" {
 }
 
 resource "aws_security_group" "vpc_endpoints" {
-  count = (var.enable_ssm_endpoint || var.enable_ecr_endpoint) ? 1 : 0
+  count = length(local.interface_endpoint_services) > 0 ? 1 : 0
 
   name_prefix = "${local.name_prefix}-vpce-"
   description = "HTTPS from the VPC to interface VPC endpoints"
@@ -58,87 +78,17 @@ resource "aws_security_group" "vpc_endpoints" {
   }
 }
 
-resource "aws_vpc_endpoint" "ssm" {
-  count = var.enable_ssm_endpoint ? 1 : 0
+resource "aws_vpc_endpoint" "interface" {
+  for_each = local.interface_endpoint_services
 
   vpc_id              = aws_vpc.this.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.ssm"
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.${each.value}"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
-  subnet_ids = [
-    for az in var.availability_zones : aws_subnet.private[az].id
-  ]
-  security_group_ids = [aws_security_group.vpc_endpoints[0].id]
+  subnet_ids          = local.private_subnet_ids
+  security_group_ids  = [aws_security_group.vpc_endpoints[0].id]
 
   tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-ssm-endpoint"
-  })
-}
-
-resource "aws_vpc_endpoint" "ssmmessages" {
-  count = var.enable_ssm_endpoint ? 1 : 0
-
-  vpc_id              = aws_vpc.this.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.ssmmessages"
-  vpc_endpoint_type   = "Interface"
-  private_dns_enabled = true
-  subnet_ids = [
-    for az in var.availability_zones : aws_subnet.private[az].id
-  ]
-  security_group_ids = [aws_security_group.vpc_endpoints[0].id]
-
-  tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-ssmmessages-endpoint"
-  })
-}
-
-resource "aws_vpc_endpoint" "ec2messages" {
-  count = var.enable_ssm_endpoint ? 1 : 0
-
-  vpc_id              = aws_vpc.this.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.ec2messages"
-  vpc_endpoint_type   = "Interface"
-  private_dns_enabled = true
-  subnet_ids = [
-    for az in var.availability_zones : aws_subnet.private[az].id
-  ]
-  security_group_ids = [aws_security_group.vpc_endpoints[0].id]
-
-  tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-ec2messages-endpoint"
-  })
-}
-
-resource "aws_vpc_endpoint" "ecr_api" {
-  count = var.enable_ecr_endpoint ? 1 : 0
-
-  vpc_id              = aws_vpc.this.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.ecr.api"
-  vpc_endpoint_type   = "Interface"
-  private_dns_enabled = true
-  subnet_ids = [
-    for az in var.availability_zones : aws_subnet.private[az].id
-  ]
-  security_group_ids = [aws_security_group.vpc_endpoints[0].id]
-
-  tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-ecr-api-endpoint"
-  })
-}
-
-resource "aws_vpc_endpoint" "ecr_dkr" {
-  count = var.enable_ecr_endpoint ? 1 : 0
-
-  vpc_id              = aws_vpc.this.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.ecr.dkr"
-  vpc_endpoint_type   = "Interface"
-  private_dns_enabled = true
-  subnet_ids = [
-    for az in var.availability_zones : aws_subnet.private[az].id
-  ]
-  security_group_ids = [aws_security_group.vpc_endpoints[0].id]
-
-  tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-ecr-dkr-endpoint"
+    Name = "${local.name_prefix}-${replace(each.key, "_", "-")}-endpoint"
   })
 }

@@ -49,30 +49,30 @@ output "dynamodb_endpoint_id" {
 
 output "ssm_endpoint_id" {
   description = "ID of the SSM interface VPC endpoint when enable_ssm_endpoint is true; otherwise null."
-  value       = var.enable_ssm_endpoint ? aws_vpc_endpoint.ssm[0].id : null
+  value       = var.enable_ssm_endpoint ? aws_vpc_endpoint.interface["ssm"].id : null
 }
 
 output "ssmmessages_endpoint_id" {
   description = "ID of the ssmmessages interface VPC endpoint when enable_ssm_endpoint is true; otherwise null."
-  value       = var.enable_ssm_endpoint ? aws_vpc_endpoint.ssmmessages[0].id : null
+  value       = var.enable_ssm_endpoint ? aws_vpc_endpoint.interface["ssmmessages"].id : null
 }
 
 output "ec2messages_endpoint_id" {
   description = "ID of the ec2messages interface VPC endpoint when enable_ssm_endpoint is true; otherwise null."
-  value       = var.enable_ssm_endpoint ? aws_vpc_endpoint.ec2messages[0].id : null
+  value       = var.enable_ssm_endpoint ? aws_vpc_endpoint.interface["ec2messages"].id : null
 }
 
 output "vpc_endpoints_security_group_id" {
   description = "Security group ID used by interface VPC endpoints when SSM or ECR endpoints are enabled; otherwise null."
-  value       = (var.enable_ssm_endpoint || var.enable_ecr_endpoint) ? aws_security_group.vpc_endpoints[0].id : null
+  value       = length(local.interface_endpoint_services) > 0 ? aws_security_group.vpc_endpoints[0].id : null
 }
 
 output "ecr_api_endpoint_id" {
   description = "ID of the ECR API interface VPC endpoint when enable_ecr_endpoint is true; otherwise null."
-  value       = var.enable_ecr_endpoint ? aws_vpc_endpoint.ecr_api[0].id : null
+  value       = var.enable_ecr_endpoint ? aws_vpc_endpoint.interface["ecr_api"].id : null
 }
 
 output "ecr_dkr_endpoint_id" {
   description = "ID of the ECR DKR interface VPC endpoint when enable_ecr_endpoint is true; otherwise null."
-  value       = var.enable_ecr_endpoint ? aws_vpc_endpoint.ecr_dkr[0].id : null
+  value       = var.enable_ecr_endpoint ? aws_vpc_endpoint.interface["ecr_dkr"].id : null
 }

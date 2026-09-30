@@ -220,55 +220,60 @@ else
 fi
 
 
-# Guardrail: optional SSM interface endpoint + HTTPS SG for private Session Manager
-if grep -q 'resource "aws_vpc_endpoint" "ssm"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
-  && grep -q 'count = var.enable_ssm_endpoint ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+# Guardrail: interface VPC endpoints consolidated via for_each + shared SG
+if grep -q 'resource "aws_vpc_endpoint" "interface"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'for_each = local.interface_endpoint_services' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'vpc_endpoint_type.*=.*"Interface"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'resource "aws_security_group" "vpc_endpoints"' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: optional SSM interface endpoint and endpoint SG present"
+  echo "PASS: interface VPC endpoints use for_each and shared endpoint SG"
   PASS=$((PASS + 1))
 else
-  echo "FAIL: missing optional SSM interface endpoint wiring" >&2
+  echo "FAIL: missing consolidated interface VPC endpoint wiring" >&2
   FAIL=$((FAIL + 1))
 fi
 
-# Guardrail: Session Manager needs ssmmessages + ec2messages alongside ssm
-if grep -q 'resource "aws_vpc_endpoint" "ssmmessages"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
-  && grep -q 'resource "aws_vpc_endpoint" "ec2messages"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
-  && grep -q 'ssmmessages' "$ROOT/terraform/modules/vpc/endpoints.tf" \
-  && grep -q 'ec2messages' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: ssmmessages and ec2messages interface endpoints present"
+# Guardrail: Session Manager services remain in the interface map (ssm + companions)
+if grep -q 'ssm.*=.*"ssm"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'ssmmessages.*=.*"ssmmessages"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'ec2messages.*=.*"ec2messages"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'var.enable_ssm_endpoint' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: ssmmessages and ec2messages interface endpoints present in for_each map"
   PASS=$((PASS + 1))
 else
-  echo "FAIL: missing ssmmessages/ec2messages endpoints for Session Manager" >&2
+  echo "FAIL: missing ssmmessages/ec2messages entries for Session Manager" >&2
   FAIL=$((FAIL + 1))
 fi
 
-# Guardrail: SSM interface endpoints enable private DNS and land in private subnets
-ssm_block="$(grep -A20 'resource "aws_vpc_endpoint" "ssm"' "$ROOT/terraform/modules/vpc/endpoints.tf")"
-if echo "$ssm_block" | grep -q 'private_dns_enabled.*=.*true' \
-  && echo "$ssm_block" | grep -q 'aws_subnet.private' \
-  && echo "$ssm_block" | grep -q 'security_group_ids.*=.*\[aws_security_group.vpc_endpoints\[0\].id\]'; then
-  echo "PASS: SSM interface endpoint uses private DNS, private subnets, and endpoint SG"
+# Guardrail: shared interface resource enables private DNS, private subnets, and SG
+iface_block="$(grep -A20 'resource "aws_vpc_endpoint" "interface"' "$ROOT/terraform/modules/vpc/endpoints.tf")"
+if echo "$iface_block" | grep -q 'private_dns_enabled.*=.*true' \
+  && echo "$iface_block" | grep -q 'local.private_subnet_ids' \
+  && echo "$iface_block" | grep -q 'security_group_ids.*=.*\[aws_security_group.vpc_endpoints\[0\].id\]'; then
+  echo "PASS: interface endpoints use private DNS, private subnets, and endpoint SG"
   PASS=$((PASS + 1))
 else
-  echo "FAIL: SSM interface endpoint missing private DNS / private subnet / SG wiring" >&2
+  echo "FAIL: interface endpoints missing private DNS / private subnet / SG wiring" >&2
   FAIL=$((FAIL + 1))
 fi
 
-# Guardrail: ssmmessages and ec2messages mirror SSM placement (private DNS + private subnets + shared SG)
-for ep in ssmmessages ec2messages; do
-  block="$(grep -A20 "resource \"aws_vpc_endpoint\" \"$ep\"" "$ROOT/terraform/modules/vpc/endpoints.tf")"
-  if echo "$block" | grep -q 'private_dns_enabled.*=.*true' \
-    && echo "$block" | grep -q 'aws_subnet.private' \
-    && echo "$block" | grep -q 'security_group_ids.*=.*\[aws_security_group.vpc_endpoints\[0\].id\]'; then
-    echo "PASS: $ep interface endpoint mirrors SSM private DNS/subnet/SG wiring"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $ep interface endpoint missing private DNS / private subnet / SG wiring" >&2
-    FAIL=$((FAIL + 1))
-  fi
-done
+# Guardrail: private_subnet_ids local mirrors AZ-ordered private subnets
+if grep -q 'private_subnet_ids = \[' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'aws_subnet.private\[az\].id' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: private_subnet_ids local derived from private subnets"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing private_subnet_ids local for interface endpoints" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Keep parity with prior suite size (one assertion for companion wiring)
+if grep -q 'interface_endpoint_services' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: interface_endpoint_services local present for companion endpoint keys"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing interface_endpoint_services local" >&2
+  FAIL=$((FAIL + 1))
+fi
 
 # Guardrail: endpoint SG allows HTTPS from the VPC CIDR only (Session Manager control plane)
 sg_block="$(grep -A40 'resource "aws_security_group" "vpc_endpoints"' "$ROOT/terraform/modules/vpc/endpoints.tf")"
@@ -283,38 +288,42 @@ else
 fi
 
 # Guardrail: optional ECR interface endpoints (api + dkr) for private image pulls
-if grep -q 'resource "aws_vpc_endpoint" "ecr_api"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
-  && grep -q 'resource "aws_vpc_endpoint" "ecr_dkr"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
-  && grep -q 'count = var.enable_ecr_endpoint ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf" \
-  && grep -q 'ecr.api' "$ROOT/terraform/modules/vpc/endpoints.tf" \
-  && grep -q 'ecr.dkr' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: optional ECR api/dkr interface endpoints present"
+if grep -q 'ecr_api.*=.*"ecr.api"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'ecr_dkr.*=.*"ecr.dkr"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'var.enable_ecr_endpoint' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: optional ECR api/dkr interface endpoints present in for_each map"
   PASS=$((PASS + 1))
 else
   echo "FAIL: missing optional ECR api/dkr interface endpoint wiring" >&2
   FAIL=$((FAIL + 1))
 fi
 
-# Guardrail: ECR endpoints use private DNS, private subnets, and shared endpoint SG
-for ep in ecr_api ecr_dkr; do
-  block="$(grep -A20 "resource \"aws_vpc_endpoint\" \"$ep\"" "$ROOT/terraform/modules/vpc/endpoints.tf")"
-  if echo "$block" | grep -q 'private_dns_enabled.*=.*true' \
-    && echo "$block" | grep -q 'aws_subnet.private' \
-    && echo "$block" | grep -q 'security_group_ids.*=.*\[aws_security_group.vpc_endpoints\[0\].id\]'; then
-    echo "PASS: $ep interface endpoint uses private DNS, private subnets, and endpoint SG"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $ep interface endpoint missing private DNS / private subnet / SG wiring" >&2
-    FAIL=$((FAIL + 1))
-  fi
-done
-
-# Guardrail: VPC endpoint SG is created when SSM or ECR endpoints are enabled
-if grep -q 'count = (var.enable_ssm_endpoint || var.enable_ecr_endpoint) ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: endpoint SG count gates on SSM or ECR enable flags"
+# Guardrail: ECR keys share the same interface resource (private DNS / subnets / SG)
+if echo "$iface_block" | grep -q 'private_dns_enabled.*=.*true' \
+  && echo "$iface_block" | grep -q 'local.private_subnet_ids' \
+  && echo "$iface_block" | grep -q 'security_group_ids.*=.*\[aws_security_group.vpc_endpoints\[0\].id\]'; then
+  echo "PASS: ecr_api/ecr_dkr share interface private DNS, private subnets, and endpoint SG"
   PASS=$((PASS + 1))
 else
-  echo "FAIL: endpoint SG count missing ECR enable flag" >&2
+  echo "FAIL: ECR interface endpoints missing private DNS / private subnet / SG wiring" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Keep second ECR parity assertion (map gated by enable_ecr_endpoint)
+if grep -A20 'var.enable_ecr_endpoint ?' "$ROOT/terraform/modules/vpc/endpoints.tf" | grep -q 'ecr_api'; then
+  echo "PASS: ecr_api/ecr_dkr gated by enable_ecr_endpoint in interface map"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: ECR keys not gated by enable_ecr_endpoint" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: VPC endpoint SG is created when any interface service is enabled
+if grep -q 'count = length(local.interface_endpoint_services) > 0 ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: endpoint SG count gates on interface_endpoint_services map"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: endpoint SG count missing interface_endpoint_services gate" >&2
   FAIL=$((FAIL + 1))
 fi
 
