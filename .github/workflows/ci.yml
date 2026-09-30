@@ -63,7 +63,7 @@ jobs:
           terraform_wrapper: false
       - name: Cache Terraform providers
         if: steps.check.outputs.present == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: terraform/.terraform
           key: tf-providers-${{ runner.os }}-${{ hashFiles('terraform/.terraform.lock.hcl', 'terraform/**/*.tf') }}
@@ -87,7 +87,7 @@ jobs:
           tflint_version: v0.53.0
       - name: Cache TFLint plugins
         if: steps.check.outputs.present == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.tflint.d/plugins
           key: tflint-${{ runner.os }}-${{ hashFiles('terraform/**/.tflint.hcl') }}
