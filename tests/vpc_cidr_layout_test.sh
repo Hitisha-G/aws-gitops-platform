@@ -327,6 +327,46 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# Guardrail: optional CloudWatch Logs interface endpoint in for_each map
+if grep -q 'logs.*=.*"logs"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'var.enable_logs_endpoint' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: optional CloudWatch Logs interface endpoint present in for_each map"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing optional CloudWatch Logs interface endpoint wiring" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: logs key gated by enable_logs_endpoint in interface map
+if grep -A5 'var.enable_logs_endpoint ?' "$ROOT/terraform/modules/vpc/endpoints.tf" | grep -q 'logs.*=.*"logs"'; then
+  echo "PASS: logs endpoint gated by enable_logs_endpoint in interface map"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: logs key not gated by enable_logs_endpoint" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: logs_endpoint_id output exposes interface["logs"] when enabled
+if grep -q 'output "logs_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
+  && grep -A5 'output "logs_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
+    | grep -q 'aws_vpc_endpoint.interface\["logs"\]'; then
+  echo "PASS: logs_endpoint_id output reads interface[\"logs\"]"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing logs_endpoint_id output for CloudWatch Logs endpoint" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: root module passes enable_logs_endpoint into the VPC module
+if grep -q 'enable_logs_endpoint.*=.*var.enable_logs_endpoint' "$ROOT/terraform/main.tf" \
+  && grep -q 'variable "enable_logs_endpoint"' "$ROOT/terraform/variables.tf"; then
+  echo "PASS: root module wires enable_logs_endpoint into VPC module"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: root module missing enable_logs_endpoint pass-through" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 echo "---"
 echo "passed=$PASS failed=$FAIL"
 [[ "$FAIL" -eq 0 ]]
