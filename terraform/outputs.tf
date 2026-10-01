@@ -44,7 +44,7 @@ output "ssm_endpoint_id" {
 }
 
 output "vpc_endpoints_security_group_id" {
-  description = "Security group ID for interface VPC endpoints when SSM, ECR, or Logs endpoints are enabled."
+  description = "Security group ID for interface VPC endpoints when SSM, ECR, Logs, or Secrets Manager endpoints are enabled."
   value       = module.vpc.vpc_endpoints_security_group_id
 }
 
@@ -62,3 +62,9 @@ output "logs_endpoint_id" {
   description = "CloudWatch Logs interface VPC endpoint ID when the endpoint is enabled."
   value       = module.vpc.logs_endpoint_id
 }
+
+output "secretsmanager_endpoint_id" {
+  description = "Secrets Manager interface VPC endpoint ID when the endpoint is enabled."
+  value       = module.vpc.secretsmanager_endpoint_id
+}
+

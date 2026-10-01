@@ -6,7 +6,7 @@ Built for platform / DevOps workflows — local-friendly validation first, with 
 
 ## What's in here
 
-- `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB/SSM/ECR/Logs endpoints; EKS/IRSA next)
+- `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB/SSM/ECR/Logs/Secrets Manager endpoints; EKS/IRSA next)
 - `charts/sample-app` — demo workload chart (planned)
 - `.github/workflows/ci.yml` — `terraform fmt` + `validate`, ShellCheck on helper scripts, Helm lint (when charts land)
 - `tests/` — shell unit checks for VPC CIDR carving (run in CI)
@@ -26,7 +26,7 @@ terraform/
     vpc/
       main.tf         # VPC, subnets, route tables, NAT
       flow_logs.tf    # optional CloudWatch Flow Logs + IAM
-      endpoints.tf    # optional S3 / DynamoDB gateway + SSM / ECR / Logs interface endpoints
+      endpoints.tf    # optional S3 / DynamoDB gateway + SSM / ECR / Logs / Secrets Manager interface endpoints
       variables.tf
       outputs.tf
 tests/
@@ -53,6 +53,7 @@ The `terraform/modules/vpc` module expects:
 | `enable_ssm_endpoint` | When true, place interface VPC endpoints for ssm, ssmmessages, and ec2messages in private subnets (default false; hourly charge) |
 | `enable_ecr_endpoint` | When true, place interface VPC endpoints for ecr.api and ecr.dkr in private subnets (default false; hourly charge; pair with S3 gateway for layer pulls) |
 | `enable_logs_endpoint` | When true, place an interface VPC endpoint for CloudWatch Logs in private subnets (default false; hourly charge; private log shipping without NAT) |
+| `enable_secretsmanager_endpoint` | When true, place an interface VPC endpoint for Secrets Manager in private subnets (default false; hourly charge; private secret fetches without NAT) |
 
 Shared tag and CIDR locals live in the module so subnet math and tagging stay consistent as more modules are added. Public and private subnets use `for_each` keyed by AZ name so reordering the AZ list does not force needless replacements.
 
@@ -93,17 +94,22 @@ Set `enable_ecr_endpoint = true` to add Interface endpoints for `ecr.api` and `e
 
 Set `enable_logs_endpoint = true` to add an Interface endpoint for `logs` in every private subnet, reusing the same HTTPS security group as SSM/ECR when those are enabled. Private DNS stays on so agents and sidecars resolve the regional CloudWatch Logs API over the VPC. Useful when private workloads (or Flow Logs exporters) should ship logs without hairpinning through NAT. Off by default because interface endpoints incur an hourly charge.
 
+### Secrets Manager interface endpoint
+
+Set `enable_secretsmanager_endpoint = true` to add an Interface endpoint for `secretsmanager` in every private subnet, reusing the same HTTPS security group as SSM/ECR/Logs when those are enabled. Private DNS stays on so apps and sidecars resolve the regional Secrets Manager API over the VPC. Useful when private workloads should fetch secrets without hairpinning through NAT. Off by default because interface endpoints incur an hourly charge.
+
 ### How interface endpoints are wired (`for_each`)
 
-SSM, ECR, and CloudWatch Logs share one `aws_vpc_endpoint.interface` resource driven by `for_each` over a local map (`interface_endpoint_services` in `endpoints.tf`). Each flag merges its service names into that map:
+SSM, ECR, CloudWatch Logs, and Secrets Manager share one `aws_vpc_endpoint.interface` resource driven by `for_each` over a local map (`interface_endpoint_services` in `endpoints.tf`). Each flag merges its service names into that map:
 
 | Flag | Map keys | AWS service suffixes |
 | --- | --- | --- |
 | `enable_ssm_endpoint` | `ssm`, `ssmmessages`, `ec2messages` | `ssm`, `ssmmessages`, `ec2messages` |
 | `enable_ecr_endpoint` | `ecr_api`, `ecr_dkr` | `ecr.api`, `ecr.dkr` |
 | `enable_logs_endpoint` | `logs` | `logs` |
+| `enable_secretsmanager_endpoint` | `secretsmanager` | `secretsmanager` |
 
-When the map is non-empty, the module creates a single security group (HTTPS 443 from the VPC CIDR) and attaches it to every interface endpoint. Private subnet IDs are collected once and reused, so enabling a second flag only adds endpoint ENIs—it does not duplicate the SG or subnet list. Outputs such as `ssm_endpoint_id`, `ecr_api_endpoint_id`, `logs_endpoint_id`, and `vpc_endpoints_security_group_id` read from the same `for_each` map (null when the matching flag is off).
+When the map is non-empty, the module creates a single security group (HTTPS 443 from the VPC CIDR) and attaches it to every interface endpoint. Private subnet IDs are collected once and reused, so enabling a second flag only adds endpoint ENIs—it does not duplicate the SG or subnet list. Outputs such as `ssm_endpoint_id`, `ecr_api_endpoint_id`, `logs_endpoint_id`, `secretsmanager_endpoint_id`, and `vpc_endpoints_security_group_id` read from the same `for_each` map (null when the matching flag is off).
 
 ## Quick start
 
@@ -134,7 +140,7 @@ CI runs fmt, validate, and those shell checks on every push to `main`.
 ## Roadmap
 
 - [x] Repo scaffold + CI
-- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints, optional SSM/ECR/Logs interface endpoints)
+- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints, optional SSM/ECR/Logs/Secrets Manager interface endpoints)
 - [ ] EKS module + IRSA stubs
 - [ ] Sample app Helm chart
 - [ ] Docs: OIDC deploy from GitHub Actions

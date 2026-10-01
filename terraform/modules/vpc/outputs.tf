@@ -63,7 +63,7 @@ output "ec2messages_endpoint_id" {
 }
 
 output "vpc_endpoints_security_group_id" {
-  description = "Security group ID used by interface VPC endpoints when SSM, ECR, or Logs endpoints are enabled; otherwise null."
+  description = "Security group ID used by interface VPC endpoints when SSM, ECR, Logs, or Secrets Manager endpoints are enabled; otherwise null."
   value       = length(local.interface_endpoint_services) > 0 ? aws_security_group.vpc_endpoints[0].id : null
 }
 
@@ -81,3 +81,9 @@ output "logs_endpoint_id" {
   description = "ID of the CloudWatch Logs interface VPC endpoint when enable_logs_endpoint is true; otherwise null."
   value       = var.enable_logs_endpoint ? aws_vpc_endpoint.interface["logs"].id : null
 }
+
+output "secretsmanager_endpoint_id" {
+  description = "ID of the Secrets Manager interface VPC endpoint when enable_secretsmanager_endpoint is true; otherwise null."
+  value       = var.enable_secretsmanager_endpoint ? aws_vpc_endpoint.interface["secretsmanager"].id : null
+}
+

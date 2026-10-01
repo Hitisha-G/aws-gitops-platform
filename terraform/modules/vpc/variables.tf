@@ -86,3 +86,10 @@ variable "enable_logs_endpoint" {
   description = "When true, create an interface VPC endpoint for CloudWatch Logs in private subnets (private log shipping without NAT)."
   default     = false
 }
+
+variable "enable_secretsmanager_endpoint" {
+  type        = bool
+  description = "When true, create an interface VPC endpoint for Secrets Manager in private subnets (private secret fetches without NAT)."
+  default     = false
+}
+

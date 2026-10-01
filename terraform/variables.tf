@@ -69,3 +69,10 @@ variable "enable_logs_endpoint" {
   description = "Create an interface VPC endpoint for CloudWatch Logs in private subnets."
   default     = false
 }
+
+variable "enable_secretsmanager_endpoint" {
+  type        = bool
+  description = "Create an interface VPC endpoint for Secrets Manager in private subnets."
+  default     = false
+}
+

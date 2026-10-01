@@ -19,6 +19,9 @@ locals {
     } : {},
     var.enable_logs_endpoint ? {
       logs = "logs"
+    } : {},
+    var.enable_secretsmanager_endpoint ? {
+      secretsmanager = "secretsmanager"
     } : {}
   )
 }
