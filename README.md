@@ -93,8 +93,17 @@ Set `enable_ecr_endpoint = true` to add Interface endpoints for `ecr.api` and `e
 
 Set `enable_logs_endpoint = true` to add an Interface endpoint for `logs` in every private subnet, reusing the same HTTPS security group as SSM/ECR when those are enabled. Private DNS stays on so agents and sidecars resolve the regional CloudWatch Logs API over the VPC. Useful when private workloads (or Flow Logs exporters) should ship logs without hairpinning through NAT. Off by default because interface endpoints incur an hourly charge.
 
+### How interface endpoints are wired (`for_each`)
 
+SSM, ECR, and CloudWatch Logs share one `aws_vpc_endpoint.interface` resource driven by `for_each` over a local map (`interface_endpoint_services` in `endpoints.tf`). Each flag merges its service names into that map:
 
+| Flag | Map keys | AWS service suffixes |
+| --- | --- | --- |
+| `enable_ssm_endpoint` | `ssm`, `ssmmessages`, `ec2messages` | `ssm`, `ssmmessages`, `ec2messages` |
+| `enable_ecr_endpoint` | `ecr_api`, `ecr_dkr` | `ecr.api`, `ecr.dkr` |
+| `enable_logs_endpoint` | `logs` | `logs` |
+
+When the map is non-empty, the module creates a single security group (HTTPS 443 from the VPC CIDR) and attaches it to every interface endpoint. Private subnet IDs are collected once and reused, so enabling a second flag only adds endpoint ENIs—it does not duplicate the SG or subnet list. Outputs such as `ssm_endpoint_id`, `ecr_api_endpoint_id`, `logs_endpoint_id`, and `vpc_endpoints_security_group_id` read from the same `for_each` map (null when the matching flag is off).
 
 ## Quick start
 
@@ -125,7 +134,7 @@ CI runs fmt, validate, and those shell checks on every push to `main`.
 ## Roadmap
 
 - [x] Repo scaffold + CI
-- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints, optional SSM/ECR interface endpoints)
+- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints, optional SSM/ECR/Logs interface endpoints)
 - [ ] EKS module + IRSA stubs
 - [ ] Sample app Helm chart
 - [ ] Docs: OIDC deploy from GitHub Actions

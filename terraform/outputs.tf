@@ -44,7 +44,7 @@ output "ssm_endpoint_id" {
 }
 
 output "vpc_endpoints_security_group_id" {
-  description = "Security group ID for interface VPC endpoints when SSM is enabled."
+  description = "Security group ID for interface VPC endpoints when SSM, ECR, or Logs endpoints are enabled."
   value       = module.vpc.vpc_endpoints_security_group_id
 }
 
