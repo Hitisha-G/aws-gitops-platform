@@ -44,7 +44,7 @@ output "ssm_endpoint_id" {
 }
 
 output "vpc_endpoints_security_group_id" {
-  description = "Security group ID for interface VPC endpoints when SSM, ECR, Logs, or Secrets Manager endpoints are enabled."
+  description = "Security group ID for interface VPC endpoints when SSM, ECR, Logs, Secrets Manager, or KMS endpoints are enabled."
   value       = module.vpc.vpc_endpoints_security_group_id
 }
 
@@ -68,3 +68,7 @@ output "secretsmanager_endpoint_id" {
   value       = module.vpc.secretsmanager_endpoint_id
 }
 
+output "kms_endpoint_id" {
+  description = "KMS interface VPC endpoint ID when the endpoint is enabled."
+  value       = module.vpc.kms_endpoint_id
+}

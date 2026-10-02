@@ -13,6 +13,7 @@ module "vpc" {
   enable_ecr_endpoint      = var.enable_ecr_endpoint
   enable_logs_endpoint     = var.enable_logs_endpoint
   enable_secretsmanager_endpoint = var.enable_secretsmanager_endpoint
+  enable_kms_endpoint            = var.enable_kms_endpoint
 
   tags = {
     ManagedBy = "terraform"

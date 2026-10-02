@@ -93,3 +93,8 @@ variable "enable_secretsmanager_endpoint" {
   default     = false
 }
 
+variable "enable_kms_endpoint" {
+  type        = bool
+  description = "When true, create an interface VPC endpoint for KMS in private subnets (private key ops without NAT)."
+  default     = false
+}

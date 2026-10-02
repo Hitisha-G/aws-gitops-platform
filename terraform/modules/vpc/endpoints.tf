@@ -22,6 +22,9 @@ locals {
     } : {},
     var.enable_secretsmanager_endpoint ? {
       secretsmanager = "secretsmanager"
+    } : {},
+    var.enable_kms_endpoint ? {
+      kms = "kms"
     } : {}
   )
 }

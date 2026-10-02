@@ -12,3 +12,4 @@ enable_ssm_endpoint      = false
 enable_ecr_endpoint      = false
 enable_logs_endpoint     = false
 enable_secretsmanager_endpoint = false
+enable_kms_endpoint            = false
