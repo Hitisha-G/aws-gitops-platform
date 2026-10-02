@@ -71,7 +71,7 @@ resource "aws_security_group" "vpc_endpoints" {
   }
 
   egress {
-    description = "HTTPS to VPC endpoint ENIs"
+    description = "HTTPS return traffic to clients in the VPC"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -84,6 +84,12 @@ resource "aws_security_group" "vpc_endpoints" {
 
   lifecycle {
     create_before_destroy = true
+
+    # ECR image layers live in S3; interface ecr.api/ecr.dkr alone cannot pull layers.
+    precondition {
+      condition     = !var.enable_ecr_endpoint || var.enable_s3_endpoint
+      error_message = "enable_ecr_endpoint requires enable_s3_endpoint so private image layer pulls can use the S3 gateway endpoint."
+    }
   }
 }
 
