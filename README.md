@@ -117,6 +117,19 @@ SSM, ECR, CloudWatch Logs, Secrets Manager, and KMS share one `aws_vpc_endpoint.
 
 When the map is non-empty, the module creates a single security group (HTTPS 443 from the VPC CIDR) and attaches it to every interface endpoint. Private subnet IDs are collected once and reused, so enabling a second flag only adds endpoint ENIs—it does not duplicate the SG or subnet list. Outputs such as `ssm_endpoint_id`, `ecr_api_endpoint_id`, `logs_endpoint_id`, `secretsmanager_endpoint_id`, `kms_endpoint_id`, and `vpc_endpoints_security_group_id` read from the same `for_each` map (null when the matching flag is off).
 
+### Recommended endpoint combinations
+
+Interface endpoints are billed hourly per AZ, so enable only what private workloads need. Common lab and platform patterns:
+
+| Goal | Enable | Why |
+| --- | --- | --- |
+| Private image pulls | `enable_ecr_endpoint` + `enable_s3_endpoint` | ECR APIs over interface ENIs; layers still come from S3 via the gateway |
+| Secrets without NAT | `enable_secretsmanager_endpoint` + `enable_kms_endpoint` | Fetch CMK-backed secrets and decrypt data keys on the AWS network |
+| Ops without a bastion | `enable_ssm_endpoint` | Session Manager needs ssm + ssmmessages + ec2messages together |
+| Private log shipping | `enable_logs_endpoint` | Agents and Flow Logs exporters reach CloudWatch Logs without NAT |
+
+Gateway endpoints (S3, DynamoDB) stay on by default because they are free; interface flags stay off until you opt in.
+
 ## Quick start
 
 With Make (preferred locally):
@@ -146,7 +159,7 @@ CI runs fmt, validate, and those shell checks on every push to `main`.
 ## Roadmap
 
 - [x] Repo scaffold + CI
-- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints, optional SSM/ECR/Logs/Secrets Manager interface endpoints)
+- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints, optional SSM/ECR/Logs/Secrets Manager/KMS interface endpoints)
 - [ ] EKS module + IRSA stubs
 - [ ] Sample app Helm chart
 - [ ] Docs: OIDC deploy from GitHub Actions
