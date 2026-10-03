@@ -89,7 +89,9 @@ Set `enable_ssm_endpoint = true` to add Interface endpoints for `ssm`, `ssmmessa
 
 ### ECR interface endpoints
 
-Set `enable_ecr_endpoint = true` to add Interface endpoints for `ecr.api` and `ecr.dkr` in every private subnet, reusing the same HTTPS security group as SSM when both are enabled. Private DNS stays on so nodes resolve the regional ECR APIs over the VPC. Keep `enable_s3_endpoint = true` as well: image layers still come from S3, and the gateway endpoint avoids NAT for those pulls. Off by default because interface endpoints incur an hourly charge.
+Set `enable_ecr_endpoint = true` to add Interface endpoints for `ecr.api` and `ecr.dkr` in every private subnet, reusing the same HTTPS security group as SSM when both are enabled. Private DNS stays on so nodes resolve the regional ECR APIs over the VPC. Image layers still come from S3, so keep `enable_s3_endpoint = true` (the default) and leave it on whenever ECR is enabled: the gateway endpoint avoids NAT for those pulls. Off by default because interface endpoints incur an hourly charge.
+
+The module enforces that pairing at plan time. A `lifecycle` precondition on the shared interface endpoint resource fails with a clear error if `enable_ecr_endpoint` is true while `enable_s3_endpoint` is false, so a broken private-pull layout cannot apply.
 
 ### CloudWatch Logs interface endpoint
 
@@ -129,6 +131,16 @@ Interface endpoints are billed hourly per AZ, so enable only what private worklo
 | Private log shipping | `enable_logs_endpoint` | Agents and Flow Logs exporters reach CloudWatch Logs without NAT |
 
 Gateway endpoints (S3, DynamoDB) stay on by default because they are free; interface flags stay off until you opt in.
+
+### Plan-time endpoint guards
+
+Besides variable validations (CIDR carving, AZ count/uniqueness, Flow Logs retention), the VPC module has one endpoint-specific guard in `terraform/modules/vpc/endpoints.tf`:
+
+| Condition | Error when violated |
+| --- | --- |
+| `enable_ecr_endpoint` implies `enable_s3_endpoint` | Plan fails: ECR interface endpoints alone cannot pull image layers without the S3 gateway |
+
+Turn ECR on only with S3 left enabled (or re-enable S3 first). Other interface flags (SSM, Logs, Secrets Manager, KMS) have no cross-service preconditions today.
 
 ## Quick start
 
