@@ -367,6 +367,98 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# Guardrail: optional Secrets Manager interface endpoint in for_each map
+if grep -q 'secretsmanager.*=.*"secretsmanager"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'var.enable_secretsmanager_endpoint' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: optional Secrets Manager interface endpoint present in for_each map"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing optional Secrets Manager interface endpoint wiring" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: secretsmanager key gated by enable_secretsmanager_endpoint
+if grep -A5 'var.enable_secretsmanager_endpoint ?' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  | grep -q 'secretsmanager.*=.*"secretsmanager"'; then
+  echo "PASS: secretsmanager endpoint gated by enable_secretsmanager_endpoint"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: secretsmanager key not gated by enable_secretsmanager_endpoint" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: secretsmanager_endpoint_id output exposes interface["secretsmanager"]
+if grep -q 'output "secretsmanager_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
+  && grep -A5 'output "secretsmanager_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
+    | grep -q 'aws_vpc_endpoint.interface\["secretsmanager"\]'; then
+  echo "PASS: secretsmanager_endpoint_id output reads interface[\"secretsmanager\"]"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing secretsmanager_endpoint_id output" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: root module passes enable_secretsmanager_endpoint into the VPC module
+if grep -q 'enable_secretsmanager_endpoint.*=.*var.enable_secretsmanager_endpoint' "$ROOT/terraform/main.tf" \
+  && grep -q 'variable "enable_secretsmanager_endpoint"' "$ROOT/terraform/variables.tf"; then
+  echo "PASS: root module wires enable_secretsmanager_endpoint into VPC module"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: root module missing enable_secretsmanager_endpoint pass-through" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: optional KMS interface endpoint in for_each map
+if grep -q 'kms.*=.*"kms"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  && grep -q 'var.enable_kms_endpoint' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
+  echo "PASS: optional KMS interface endpoint present in for_each map"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing optional KMS interface endpoint wiring" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: kms key gated by enable_kms_endpoint
+if grep -A5 'var.enable_kms_endpoint ?' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  | grep -q 'kms.*=.*"kms"'; then
+  echo "PASS: kms endpoint gated by enable_kms_endpoint"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: kms key not gated by enable_kms_endpoint" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: kms_endpoint_id output exposes interface["kms"]
+if grep -q 'output "kms_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
+  && grep -A5 'output "kms_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
+    | grep -q 'aws_vpc_endpoint.interface\["kms"\]'; then
+  echo "PASS: kms_endpoint_id output reads interface[\"kms\"]"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing kms_endpoint_id output" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: root module passes enable_kms_endpoint into the VPC module
+if grep -q 'enable_kms_endpoint.*=.*var.enable_kms_endpoint' "$ROOT/terraform/main.tf" \
+  && grep -q 'variable "enable_kms_endpoint"' "$ROOT/terraform/variables.tf"; then
+  echo "PASS: root module wires enable_kms_endpoint into VPC module"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: root module missing enable_kms_endpoint pass-through" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# Guardrail: ECR interface endpoints require the S3 gateway (layer pulls)
+if grep -A15 'precondition' "$ROOT/terraform/modules/vpc/endpoints.tf" \
+  | grep -q '!var.enable_ecr_endpoint || var.enable_s3_endpoint'; then
+  echo "PASS: ECR endpoint precondition requires enable_s3_endpoint"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing ECR requires S3 gateway precondition" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 echo "---"
 echo "passed=$PASS failed=$FAIL"
 [[ "$FAIL" -eq 0 ]]
