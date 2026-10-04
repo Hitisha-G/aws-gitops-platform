@@ -142,6 +142,26 @@ Besides variable validations (CIDR carving, AZ count/uniqueness, Flow Logs reten
 
 Turn ECR on only with S3 left enabled (or re-enable S3 first). Other interface flags (SSM, Logs, Secrets Manager, KMS) have no cross-service preconditions today.
 
+## Stack outputs
+
+After `terraform apply`, the root stack exposes IDs that later modules (EKS, IRSA, Helm) can wire without re-looking up the VPC:
+
+| Output | When set | Typical consumer |
+| --- | --- | --- |
+| `vpc_id` | Always | Security groups, VPC CNI, peerings |
+| `public_subnet_ids` | Always | Load balancers, bastion / ingress paths |
+| `private_subnet_ids` | Always | EKS node groups, private workloads |
+| `nat_gateway_id` | `enable_nat_gateway` | Cost reviews, private egress debugging |
+| `flow_log_id` / `flow_log_group_name` | `enable_flow_logs` | SIEM shipping, retention checks |
+| `s3_endpoint_id` / `dynamodb_endpoint_id` | Matching gateway flag | Confirm private AWS API routes |
+| `ssm_endpoint_id` | `enable_ssm_endpoint` | Session Manager without a bastion |
+| `ecr_api_endpoint_id` / `ecr_dkr_endpoint_id` | `enable_ecr_endpoint` | Private image pulls (pair with S3) |
+| `logs_endpoint_id` | `enable_logs_endpoint` | Private CloudWatch Logs shipping |
+| `secretsmanager_endpoint_id` / `kms_endpoint_id` | Matching interface flag | Private secret fetch + decrypt |
+| `vpc_endpoints_security_group_id` | Any interface flag on | Shared HTTPS SG for interface ENIs |
+
+Disabled optional features return `null` for their outputs so callers can use a single `terraform output` map without conditional modules.
+
 ## Quick start
 
 With Make (preferred locally):
