@@ -1,0 +1,26 @@
+# Optional local hooks; run `pre-commit install` once to enable.
+# Mirrors the checks in .github/workflows/ci.yml so issues surface before push.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-merge-conflict
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.1
+    hooks:
+      - id: terraform_fmt
+        args: [--args=-recursive]
+      - id: terraform_validate
+        args: [--hook-config=--retry-once-with-cleanup=true]
+      - id: terraform_tflint
+        args: [--args=--config=__GIT_WORKING_DIR__/terraform/.tflint.hcl]
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        files: ^tests/.*\.sh$
