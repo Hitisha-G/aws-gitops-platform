@@ -9,7 +9,7 @@ Built for platform / DevOps workflows — local-friendly validation first, with 
 - `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB/SSM/ECR/Logs/Secrets Manager/KMS endpoints; EKS/IRSA next)
 - `charts/sample-app` — demo workload chart (planned)
 - `.github/workflows/ci.yml` — `terraform fmt` + `validate`, ShellCheck on helper scripts, Helm lint (when charts land)
-- `tests/` — shell unit checks for VPC CIDR carving (run in CI)
+- `tests/` — shell unit checks for VPC CIDR carving, input validation, and the root outputs contract (run in CI)
 
 ## Repository layout
 
@@ -30,7 +30,8 @@ terraform/
       variables.tf
       outputs.tf
 tests/
-  vpc_cidr_layout_test.sh
+  vpc_cidr_layout_test.sh      # subnet carving + input validation guards
+  outputs_contract_test.sh     # root outputs match declared VPC module outputs
 ```
 
 Default region is `ap-south-1` (Mumbai) so local experiments match common India-region targets.
@@ -41,7 +42,7 @@ The `terraform/modules/vpc` module expects:
 
 | Input | Purpose |
 | --- | --- |
-| `project_name` | Prefix for resource Name tags |
+| `project_name` | Prefix for resource Name tags, the Flow Logs IAM role, and log group paths (lowercase letters, digits, and hyphens; max 50 characters) |
 | `vpc_cidr` | CIDR for the VPC (default root value `10.40.0.0/16`) |
 | `availability_zones` | One public + one private subnet per AZ (minimum two, no duplicates) |
 | `tags` | Optional map merged onto every resource |
@@ -57,6 +58,17 @@ The `terraform/modules/vpc` module expects:
 | `enable_kms_endpoint` | When true, place an interface VPC endpoint for KMS in private subnets (default false; hourly charge; private encrypt/decrypt without NAT) |
 
 Shared tag and CIDR locals live in the module so subnet math and tagging stay consistent as more modules are added. Public and private subnets use `for_each` keyed by AZ name so reordering the AZ list does not force needless replacements.
+
+### Naming rules for `project_name`
+
+`project_name` is reused verbatim in names AWS validates strictly, so the module rejects bad values at plan time instead of failing midway through an apply:
+
+| Rule | Why |
+| --- | --- |
+| Lowercase letters, digits, and hyphens only; no leading or trailing hyphen | Keeps Name tags, the `/aws/vpc/<project>/flow-logs` log group, and IAM role names DNS-style and predictable |
+| 50 characters or fewer | The Flow Logs role is named `<project>-vpc-flow-logs`, and IAM role names are capped at 64 characters |
+
+Pick a short slug such as `gitops-lab` or `platform-dev`; the default `aws-gitops-platform` passes both checks.
 
 ### NAT gateway
 
@@ -134,7 +146,7 @@ Gateway endpoints (S3, DynamoDB) stay on by default because they are free; inter
 
 ### Plan-time endpoint guards
 
-Besides variable validations (CIDR carving, AZ count/uniqueness, Flow Logs retention), the VPC module has one endpoint-specific guard in `terraform/modules/vpc/endpoints.tf`:
+Besides variable validations (`project_name` format and length, CIDR carving, AZ count/uniqueness, Flow Logs retention), the VPC module has one endpoint-specific guard in `terraform/modules/vpc/endpoints.tf`:
 
 | Condition | Error when violated |
 | --- | --- |
@@ -183,7 +195,9 @@ Copy `terraform/terraform.tfvars.example` when you want named values for a lab a
 
 ```bash
 make test
-# or: bash tests/vpc_cidr_layout_test.sh
+# or run each script directly:
+bash tests/vpc_cidr_layout_test.sh
+bash tests/outputs_contract_test.sh
 ```
 
 CI runs fmt, validate, and those shell checks on every push to `main`.
