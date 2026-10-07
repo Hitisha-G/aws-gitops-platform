@@ -60,7 +60,7 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
             echo "Terraform root not added yet; skipping validate."
           fi
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         if: steps.check.outputs.present == 'true'
         with:
           terraform_version: "1.9.8"
