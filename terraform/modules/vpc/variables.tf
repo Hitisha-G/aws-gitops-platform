@@ -1,6 +1,18 @@
 variable "project_name" {
   type        = string
   description = "Short name used for resource Name tags."
+
+  # Used verbatim in IAM role names ("<name>-vpc-flow-logs", 64-char limit)
+  # and CloudWatch log group paths, so keep it short and DNS-style.
+  validation {
+    condition     = can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", var.project_name))
+    error_message = "project_name must use lowercase letters, digits, and hyphens, and must not start or end with a hyphen."
+  }
+
+  validation {
+    condition     = length(var.project_name) <= 50
+    error_message = "project_name must be 50 characters or fewer so the derived \"<name>-vpc-flow-logs\" IAM role name stays within the 64-character limit."
+  }
 }
 
 variable "vpc_cidr" {

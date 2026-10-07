@@ -134,6 +134,18 @@ for i in $(seq 0 $((AZ_COUNT - 1))); do
   done
 done
 
+# Guardrail: project_name must fit derived IAM role names (<name>-vpc-flow-logs <= 64)
+if grep -q 'length(var.project_name) <= 50' "$ROOT/terraform/modules/vpc/variables.tf" \
+  && grep -q 'regex("^\[a-z0-9\]' "$ROOT/terraform/modules/vpc/variables.tf"; then
+  echo "PASS: project_name format and length validation present"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing project_name format/length validation" >&2
+  FAIL=$((FAIL + 1))
+fi
+suffix="-vpc-flow-logs"
+assert_eq "max project_name role length" "64" "$((50 + ${#suffix}))"
+
 # Guardrail: Flow Logs retention must match AWS-supported CloudWatch values
 if grep -q 'flow_logs_retention_days must be a CloudWatch Logs retention value' \
   "$ROOT/terraform/modules/vpc/variables.tf"; then
