@@ -1,6 +1,9 @@
 data "aws_region" "current" {}
 
 locals {
+  # Regional service-name prefix shared by gateway and interface endpoints.
+  endpoint_service_prefix = "com.amazonaws.${data.aws_region.current.name}"
+
   # Shared private-subnet placement for every interface endpoint.
   private_subnet_ids = [
     for az in var.availability_zones : aws_subnet.private[az].id
@@ -33,7 +36,7 @@ resource "aws_vpc_endpoint" "s3" {
   count = var.enable_s3_endpoint ? 1 : 0
 
   vpc_id            = aws_vpc.this.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  service_name      = "${local.endpoint_service_prefix}.s3"
   vpc_endpoint_type = "Gateway"
   route_table_ids   = [aws_route_table.private.id]
 
@@ -46,7 +49,7 @@ resource "aws_vpc_endpoint" "dynamodb" {
   count = var.enable_dynamodb_endpoint ? 1 : 0
 
   vpc_id            = aws_vpc.this.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.dynamodb"
+  service_name      = "${local.endpoint_service_prefix}.dynamodb"
   vpc_endpoint_type = "Gateway"
   route_table_ids   = [aws_route_table.private.id]
 
@@ -97,7 +100,7 @@ resource "aws_vpc_endpoint" "interface" {
   for_each = local.interface_endpoint_services
 
   vpc_id              = aws_vpc.this.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.${each.value}"
+  service_name        = "${local.endpoint_service_prefix}.${each.value}"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = local.private_subnet_ids
