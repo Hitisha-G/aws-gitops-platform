@@ -203,6 +203,7 @@ make test
 # or run each script directly:
 bash tests/vpc_cidr_layout_test.sh
 bash tests/outputs_contract_test.sh
+bash tests/flow_logs_traffic_type_test.sh
 ```
 
 CI runs fmt, validate, and those shell checks on every push to `main`.

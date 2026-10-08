@@ -125,10 +125,10 @@ for i in $(seq 0 $((AZ_COUNT - 1))); do
       block="$(cidrsubnet "$VPC_CIDR" 4 $((i + AZ_COUNT)))"
     fi
     if python3 -c "import ipaddress,sys; parent=ipaddress.ip_network(sys.argv[1]); child=ipaddress.ip_network(sys.argv[2]); sys.exit(0 if child.subnet_of(parent) else 1)" "$VPC_CIDR" "$block"; then
-      echo "PASS: $kind[$i] $block inside $VPC_CIDR"
+      echo "PASS: ${kind}[$i] $block inside $VPC_CIDR"
       PASS=$((PASS + 1))
     else
-      echo "FAIL: $kind[$i] $block not inside $VPC_CIDR" >&2
+      echo "FAIL: ${kind}[$i] $block not inside $VPC_CIDR" >&2
       FAIL=$((FAIL + 1))
     fi
   done
