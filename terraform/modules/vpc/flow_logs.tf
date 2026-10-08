@@ -84,7 +84,7 @@ resource "aws_flow_log" "this" {
   count = var.enable_flow_logs ? 1 : 0
 
   vpc_id               = aws_vpc.this.id
-  traffic_type         = "ALL"
+  traffic_type         = var.flow_logs_traffic_type
   log_destination_type = "cloud-watch-logs"
   log_destination      = aws_cloudwatch_log_group.flow_logs[0].arn
   iam_role_arn         = aws_iam_role.flow_logs[0].arn

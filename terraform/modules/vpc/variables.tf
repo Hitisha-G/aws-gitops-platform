@@ -69,6 +69,17 @@ variable "flow_logs_retention_days" {
   }
 }
 
+variable "flow_logs_traffic_type" {
+  type        = string
+  description = "Which traffic VPC Flow Logs capture: ACCEPT, REJECT, or ALL."
+  default     = "ALL"
+
+  validation {
+    condition     = contains(["ACCEPT", "REJECT", "ALL"], var.flow_logs_traffic_type)
+    error_message = "flow_logs_traffic_type must be one of ACCEPT, REJECT, or ALL."
+  }
+}
+
 variable "enable_s3_endpoint" {
   type        = bool
   description = "When true, create a gateway VPC endpoint for S3 and associate it with the private route table."

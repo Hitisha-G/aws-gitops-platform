@@ -7,6 +7,7 @@ module "vpc" {
   enable_nat_gateway             = var.enable_nat_gateway
   enable_flow_logs               = var.enable_flow_logs
   flow_logs_retention_days       = var.flow_logs_retention_days
+  flow_logs_traffic_type         = var.flow_logs_traffic_type
   enable_s3_endpoint             = var.enable_s3_endpoint
   enable_dynamodb_endpoint       = var.enable_dynamodb_endpoint
   enable_ssm_endpoint            = var.enable_ssm_endpoint

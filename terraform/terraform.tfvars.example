@@ -6,6 +6,7 @@ availability_zones       = ["ap-south-1a", "ap-south-1b"]
 enable_nat_gateway       = true
 enable_flow_logs         = false
 flow_logs_retention_days = 14
+flow_logs_traffic_type   = "ALL"
 enable_s3_endpoint       = true
 enable_dynamodb_endpoint = true
 enable_ssm_endpoint      = false

@@ -40,6 +40,12 @@ variable "flow_logs_retention_days" {
   default     = 14
 }
 
+variable "flow_logs_traffic_type" {
+  type        = string
+  description = "Traffic captured by VPC Flow Logs: ACCEPT, REJECT, or ALL."
+  default     = "ALL"
+}
+
 variable "enable_s3_endpoint" {
   type        = bool
   description = "Create a gateway VPC endpoint for S3 on the private route table."

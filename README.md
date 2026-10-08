@@ -49,8 +49,9 @@ The `terraform/modules/vpc` module expects:
 | `availability_zones` | One public + one private subnet per AZ (minimum two, no duplicates) |
 | `tags` | Optional map merged onto every resource |
 | `enable_nat_gateway` | When true (default), place one NAT in the first public subnet and route private `0.0.0.0/0` through it |
-| `enable_flow_logs` | When true, send VPC Flow Logs (ALL traffic) to CloudWatch Logs |
+| `enable_flow_logs` | When true, send VPC Flow Logs to CloudWatch Logs |
 | `flow_logs_retention_days` | CloudWatch retention for the flow-log group (default `14`) |
+| `flow_logs_traffic_type` | Traffic captured by flow logs: `ACCEPT`, `REJECT`, or `ALL` (default `ALL`) |
 | `enable_s3_endpoint` | When true (default), attach a gateway VPC endpoint for S3 to the private route table |
 | `enable_dynamodb_endpoint` | When true (default), attach a gateway VPC endpoint for DynamoDB to the private route table |
 | `enable_ssm_endpoint` | When true, place interface VPC endpoints for ssm, ssmmessages, and ec2messages in private subnets (default false; hourly charge) |
@@ -83,7 +84,9 @@ Flow logs are off by default. Set `enable_flow_logs = true` (root or module) to 
 1. A CloudWatch Logs group under `/aws/vpc/<project>/flow-logs`
 2. An IAM role assumed by `vpc-flow-logs.amazonaws.com`
 3. An inline policy scoped to that log group
-4. An `aws_flow_log` resource for the VPC (`traffic_type = ALL`)
+4. An `aws_flow_log` resource for the VPC (`traffic_type` from `flow_logs_traffic_type`, default `ALL`)
+
+Set `flow_logs_traffic_type = "REJECT"` to keep only denied connections, which is a cheap way to audit security groups and NACLs without paying to ingest every accepted flow. Use `ACCEPT` or the default `ALL` when you need full traffic analysis.
 
 The flow-log resource depends on the IAM policy so the first apply does not race CreateLogStream with a missing permission. Retention must be a value AWS CloudWatch Logs accepts (for example 1, 7, 14, 30, 90, 365).
 
@@ -148,7 +151,7 @@ Gateway endpoints (S3, DynamoDB) stay on by default because they are free; inter
 
 ### Plan-time endpoint guards
 
-Besides variable validations (`project_name` format and length, CIDR carving, AZ count/uniqueness, Flow Logs retention), the VPC module has one endpoint-specific guard in `terraform/modules/vpc/endpoints.tf`:
+Besides variable validations (`project_name` format and length, CIDR carving, AZ count/uniqueness, Flow Logs retention and traffic type), the VPC module has one endpoint-specific guard in `terraform/modules/vpc/endpoints.tf`:
 
 | Condition | Error when violated |
 | --- | --- |
