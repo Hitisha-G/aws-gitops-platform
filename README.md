@@ -8,14 +8,16 @@ Built for platform / DevOps workflows — local-friendly validation first, with 
 
 - `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB/SSM/ECR/Logs/Secrets Manager/KMS endpoints; EKS/IRSA next)
 - `charts/sample-app` — demo workload chart (planned)
-- `.github/workflows/ci.yml` — `terraform fmt` + `validate`, ShellCheck on helper scripts, Helm lint (when charts land)
+- `.github/workflows/ci.yml` — ShellCheck + shell unit tests, then `terraform fmt`, lock-file check, `validate`, and TFLint (Helm lint when charts land)
 - `tests/` — shell unit checks for VPC CIDR carving, input validation, and the root outputs contract (run in CI)
 
 ## Repository layout
 
 ```
-Makefile            # local fmt / init / validate / test / ci helpers
+Makefile            # local fmt / init / validate / lint / test / ci helpers
+.pre-commit-config.yaml  # optional git hooks mirroring CI
 terraform/
+  .tflint.hcl       # TFLint config (recommended preset, local modules)
   main.tf           # wires root variables into modules
   variables.tf      # region, project name, VPC CIDR, AZs, NAT, flow logs, endpoints
   providers.tf      # AWS provider
@@ -201,6 +203,33 @@ bash tests/outputs_contract_test.sh
 ```
 
 CI runs fmt, validate, and those shell checks on every push to `main`.
+
+## CI checks and how to reproduce them locally
+
+The `ci` workflow runs on pushes to `main` and on pull requests that touch `terraform/`, `tests/`, the `Makefile`, or the workflow itself. It has two jobs, and the Terraform job only starts after the unit job passes:
+
+| Job | Step | Local equivalent |
+| --- | --- | --- |
+| `unit` | ShellCheck on `tests/*.sh` | `make shellcheck` |
+| `unit` | Shell unit tests | `make test` |
+| `terraform` | `terraform fmt -check -diff -recursive` | `make fmt-check` |
+| `terraform` | Fail if `.terraform.lock.hcl` is missing | `ls terraform/.terraform.lock.hcl` |
+| `terraform` | `terraform init -backend=false` + `validate` | `make validate` |
+| `terraform` | `tflint --init` + `tflint --recursive` (v0.53.0, recommended preset) | `make lint` |
+
+`make ci` chains `test`, `validate`, and `lint` in the same order as the pipeline, so a green local run should mean a green push. ShellCheck and TFLint must be installed for `make shellcheck` and `make lint`.
+
+TFLint reads `terraform/.tflint.hcl`, which enables the bundled `terraform` ruleset with the `recommended` preset and sets `call_module_type = "local"` so rules also inspect `modules/vpc`. Common failures from that preset are unused declarations, interpolation-only expressions such as `"${var.x}"`, and missing version constraints.
+
+To catch the same issues before committing, install the optional hooks once:
+
+```bash
+pip install pre-commit
+pre-commit install
+pre-commit run --all-files   # first full pass
+```
+
+The hooks run `terraform fmt`, `terraform validate`, TFLint with the repo config, and ShellCheck on `tests/`, plus whitespace, end-of-file, YAML, and merge-conflict checks.
 
 ## Roadmap
 
