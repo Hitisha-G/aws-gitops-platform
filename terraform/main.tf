@@ -15,6 +15,8 @@ module "vpc" {
   enable_logs_endpoint           = var.enable_logs_endpoint
   enable_secretsmanager_endpoint = var.enable_secretsmanager_endpoint
   enable_kms_endpoint            = var.enable_kms_endpoint
+  enable_eks_subnet_tags         = var.enable_eks_subnet_tags
+  eks_cluster_tag                = var.eks_cluster_tag
 
   tags = {
     ManagedBy = "terraform"

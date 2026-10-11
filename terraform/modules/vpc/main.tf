@@ -24,6 +24,23 @@ locals {
 
   # First AZ by sorted name — keeps NAT placement stable if var list order changes.
   primary_public_az = sort(keys(local.az_index))[0]
+
+  # Optional EKS discovery tags (off by default; see enable_eks_subnet_tags).
+  eks_cluster_shared_tag = (
+    var.enable_eks_subnet_tags && var.eks_cluster_tag != ""
+    ? { "kubernetes.io/cluster/${var.eks_cluster_tag}" = "shared" }
+    : {}
+  )
+
+  eks_public_subnet_tags = var.enable_eks_subnet_tags ? merge(
+    { "kubernetes.io/role/elb" = "1" },
+    local.eks_cluster_shared_tag,
+  ) : {}
+
+  eks_private_subnet_tags = var.enable_eks_subnet_tags ? merge(
+    { "kubernetes.io/role/internal-elb" = "1" },
+    local.eks_cluster_shared_tag,
+  ) : {}
 }
 
 resource "aws_vpc" "this" {
@@ -64,7 +81,7 @@ resource "aws_subnet" "public" {
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-public-${each.value + 1}"
     Tier = "public"
-  })
+  }, local.eks_public_subnet_tags)
 }
 
 resource "aws_subnet" "private" {
@@ -77,7 +94,7 @@ resource "aws_subnet" "private" {
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-private-${each.value + 1}"
     Tier = "private"
-  })
+  }, local.eks_private_subnet_tags)
 }
 
 resource "aws_route_table" "public" {

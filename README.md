@@ -34,6 +34,7 @@ terraform/
 tests/
   vpc_cidr_layout_test.sh      # subnet carving + input validation guards
   outputs_contract_test.sh     # root outputs match declared VPC module outputs
+  eks_subnet_tags_test.sh      # optional EKS subnet discovery tag wiring
 ```
 
 Default region is `ap-south-1` (Mumbai) so local experiments match common India-region targets.
@@ -59,6 +60,8 @@ The `terraform/modules/vpc` module expects:
 | `enable_logs_endpoint` | When true, place an interface VPC endpoint for CloudWatch Logs in private subnets (default false; hourly charge; private log shipping without NAT) |
 | `enable_secretsmanager_endpoint` | When true, place an interface VPC endpoint for Secrets Manager in private subnets (default false; hourly charge; private secret fetches without NAT) |
 | `enable_kms_endpoint` | When true, place an interface VPC endpoint for KMS in private subnets (default false; hourly charge; private encrypt/decrypt without NAT) |
+| `enable_eks_subnet_tags` | When true, tag public subnets with `kubernetes.io/role/elb=1` and private with `kubernetes.io/role/internal-elb=1` for EKS load balancer discovery (default false) |
+| `eks_cluster_tag` | Optional cluster name; when non-empty and `enable_eks_subnet_tags` is true, also set `kubernetes.io/cluster/<name>=shared` on public and private subnets (default `""`) |
 
 Shared tag and CIDR locals live in the module so subnet math and tagging stay consistent as more modules are added. Public and private subnets use `for_each` keyed by AZ name so reordering the AZ list does not force needless replacements.
 
@@ -76,6 +79,19 @@ Pick a short slug such as `gitops-lab` or `platform-dev`; the default `aws-gitop
 ### NAT gateway
 
 Private subnets share a dedicated route table. When `enable_nat_gateway` is true, a single EIP + NAT gateway lands in the lexicographically first public subnet AZ, and a standalone `aws_route` points private default traffic at that NAT. Set the flag to false for cost-sensitive labs that do not need private egress.
+
+### EKS subnet discovery tags
+
+EKS and the AWS Load Balancer Controller look for well-known subnet tags when placing internet-facing or internal load balancers. Those tags are off by default so a plain VPC apply stays tag-minimal.
+
+Set `enable_eks_subnet_tags = true` to add:
+
+| Subnet tier | Tag | Value |
+| --- | --- | --- |
+| Public | `kubernetes.io/role/elb` | `1` |
+| Private | `kubernetes.io/role/internal-elb` | `1` |
+
+Optionally set `eks_cluster_tag` to your cluster name (for example `platform-dev`). When that string is non-empty **and** `enable_eks_subnet_tags` is true, the module also sets `kubernetes.io/cluster/<eks_cluster_tag> = shared` on both public and private subnets so multiple clusters (or shared networking) can discover the same subnets. Leave `eks_cluster_tag` empty if you only need the role tags.
 
 ### VPC Flow Logs
 
@@ -204,6 +220,7 @@ make test
 bash tests/vpc_cidr_layout_test.sh
 bash tests/outputs_contract_test.sh
 bash tests/flow_logs_traffic_type_test.sh
+bash tests/eks_subnet_tags_test.sh
 ```
 
 CI runs fmt, validate, and those shell checks on every push to `main`.
