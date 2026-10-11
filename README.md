@@ -32,9 +32,11 @@ terraform/
       variables.tf
       outputs.tf
 tests/
-  vpc_cidr_layout_test.sh      # subnet carving + input validation guards
-  outputs_contract_test.sh     # root outputs match declared VPC module outputs
-  eks_subnet_tags_test.sh      # optional EKS subnet discovery tag wiring
+  vpc_cidr_layout_test.sh           # subnet carving + input validation guards
+  outputs_contract_test.sh          # root outputs match declared VPC module outputs
+  flow_logs_traffic_type_test.sh    # ACCEPT / REJECT / ALL wiring + allowed values
+  flow_logs_retention_days_test.sh  # CloudWatch retention allow-list guard
+  eks_subnet_tags_test.sh           # optional EKS subnet discovery tag wiring
 ```
 
 Default region is `ap-south-1` (Mumbai) so local experiments match common India-region targets.
@@ -64,6 +66,19 @@ The `terraform/modules/vpc` module expects:
 | `eks_cluster_tag` | Optional cluster name; when non-empty and `enable_eks_subnet_tags` is true, also set `kubernetes.io/cluster/<name>=shared` on public and private subnets (default `""`) |
 
 Shared tag and CIDR locals live in the module so subnet math and tagging stay consistent as more modules are added. Public and private subnets use `for_each` keyed by AZ name so reordering the AZ list does not force needless replacements.
+
+### Subnet CIDR carving
+
+The module always carves **two** subnets per AZ (one public, one private) from `vpc_cidr` with a fixed `cidrsubnet(..., newbits=4, ...)`. That means each child block is `/20` when the VPC is a `/16`, and the VPC can hold at most **16** such blocks — so at most **8** AZs (a plan-time precondition fails if you pass more).
+
+| Tier | Index formula | Example with `10.40.0.0/16` and AZs `[ap-south-1a, ap-south-1b]` |
+| --- | --- | --- |
+| Public | `idx` for each AZ (0 … N−1) | `10.40.0.0/20`, `10.40.16.0/20` |
+| Private | `idx + N` for each AZ | `10.40.32.0/20`, `10.40.48.0/20` |
+
+`N` is `length(availability_zones)`. Public blocks occupy the low half of the carve space; private blocks follow immediately after. Name tags still use 1-based suffixes (`…-public-1`, `…-private-1`) from the AZ list order, while NAT placement uses the **lexicographically first** AZ name so reordering the variable does not move the gateway.
+
+Keep `vpc_cidr` wide enough for your AZ count (a `/16` with `newbits=4` is the documented default). Narrower VPCs still work as long as `cidrsubnet` can allocate `2 * N` blocks.
 
 ### Naming rules for `project_name`
 
@@ -220,6 +235,7 @@ make test
 bash tests/vpc_cidr_layout_test.sh
 bash tests/outputs_contract_test.sh
 bash tests/flow_logs_traffic_type_test.sh
+bash tests/flow_logs_retention_days_test.sh
 bash tests/eks_subnet_tags_test.sh
 ```
 
