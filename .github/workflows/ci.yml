@@ -39,7 +39,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq shellcheck
-          shellcheck tests/*.sh
+          shellcheck tests/*.sh tests/lib/*.sh
       - name: Shell unit tests (tests/*.sh)
         run: make test
 

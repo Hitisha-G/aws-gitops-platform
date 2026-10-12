@@ -6,26 +6,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib/assert.sh
+source "$(dirname "$0")/lib/assert.sh"
 MODULE_MAIN="$ROOT/terraform/modules/vpc/main.tf"
 MODULE_VARS="$ROOT/terraform/modules/vpc/variables.tf"
 ROOT_VARS="$ROOT/terraform/variables.tf"
 ROOT_MAIN="$ROOT/terraform/main.tf"
 TFVARS_EXAMPLE="$ROOT/terraform/terraform.tfvars.example"
-PASS=0
-FAIL=0
-
-pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
-fail() { echo "FAIL: $1" >&2; FAIL=$((FAIL + 1)); }
-
-# Print the body of `variable "<name>" { ... }` from a .tf file.
-variable_block() {
-  local file="$1" name="$2"
-  awk -v name="$name" '
-    $0 ~ "^variable \"" name "\"" { inside = 1 }
-    inside { print }
-    inside && /^}/ { exit }
-  ' "$file"
-}
 
 default_of() {
   variable_block "$1" "$2" | sed -n 's/^[[:space:]]*default[[:space:]]*=[[:space:]]*\([^[:space:]#]*\).*/\1/p' | tr -d '"'
@@ -130,6 +117,4 @@ else
   fail "tfvars example missing EKS subnet tag knobs"
 fi
 
-echo "---"
-echo "passed=$PASS failed=$FAIL"
-[[ "$FAIL" -eq 0 ]]
+finish

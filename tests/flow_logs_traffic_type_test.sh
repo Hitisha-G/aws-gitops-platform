@@ -6,35 +6,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib/assert.sh
+source "$(dirname "$0")/lib/assert.sh"
 MODULE_VARS="$ROOT/terraform/modules/vpc/variables.tf"
 ROOT_VARS="$ROOT/terraform/variables.tf"
 ROOT_MAIN="$ROOT/terraform/main.tf"
 FLOW_LOGS="$ROOT/terraform/modules/vpc/flow_logs.tf"
 TFVARS_EXAMPLE="$ROOT/terraform/terraform.tfvars.example"
-PASS=0
-FAIL=0
-
-pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
-fail() { echo "FAIL: $1" >&2; FAIL=$((FAIL + 1)); }
-
-assert_eq() {
-  local label="$1" expected="$2" actual="$3"
-  if [[ "$expected" == "$actual" ]]; then
-    pass "$label ($actual)"
-  else
-    fail "$label expected=$expected actual=$actual"
-  fi
-}
-
-# Print the body of `variable "<name>" { ... }` from a .tf file.
-variable_block() {
-  local file="$1" name="$2"
-  awk -v name="$name" '
-    $0 ~ "^variable \"" name "\"" { inside = 1 }
-    inside { print }
-    inside && /^}/ { exit }
-  ' "$file"
-}
 
 # Print the default string value of a variable block.
 default_of() {
@@ -100,6 +78,4 @@ for candidate in all Accept reject " ALL" NONE; do
   fi
 done
 
-echo "---"
-echo "passed=$PASS failed=$FAIL"
-[[ "$FAIL" -eq 0 ]]
+finish

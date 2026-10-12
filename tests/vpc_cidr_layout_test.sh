@@ -6,19 +6,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PASS=0
-FAIL=0
-
-assert_eq() {
-  local label="$1" expected="$2" actual="$3"
-  if [[ "$expected" == "$actual" ]]; then
-    echo "PASS: $label ($actual)"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $label expected=$expected actual=$actual" >&2
-    FAIL=$((FAIL + 1))
-  fi
-}
+# shellcheck source=lib/assert.sh
+source "$(dirname "$0")/lib/assert.sh"
 
 # Python implements Terraform cidrsubnet(prefix, newbits, netnum).
 cidrsubnet() {
@@ -54,51 +43,41 @@ assert_eq "3az private[0]" "10.40.48.0/20" "$PRIVATE_0"
 # Guardrail: module variable validation requires >= 2 AZs
 if grep -q 'length(var.availability_zones) >= 2' \
   "$ROOT/terraform/modules/vpc/variables.tf"; then
-  echo "PASS: AZ validation present in module variables"
-  PASS=$((PASS + 1))
+  pass "AZ validation present in module variables"
 else
-  echo "FAIL: missing AZ count validation in module variables" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing AZ count validation in module variables"
 fi
 
 # Guardrail: duplicate AZ entries must be rejected (for_each keys collide otherwise)
 if grep -q 'length(toset(var.availability_zones))' \
   "$ROOT/terraform/modules/vpc/variables.tf"; then
-  echo "PASS: AZ uniqueness validation present in module variables"
-  PASS=$((PASS + 1))
+  pass "AZ uniqueness validation present in module variables"
 else
-  echo "FAIL: missing AZ uniqueness validation in module variables" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing AZ uniqueness validation in module variables"
 fi
 
 # Guardrail: undersized AZ counts vs subnet carve must fail before apply
 if grep -q 'local.az_count \* 2 <= pow(2, local.subnet_newbits)' \
   "$ROOT/terraform/modules/vpc/main.tf"; then
-  echo "PASS: VPC subnet capacity precondition present"
-  PASS=$((PASS + 1))
+  pass "VPC subnet capacity precondition present"
 else
-  echo "FAIL: missing VPC subnet capacity precondition" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing VPC subnet capacity precondition"
 fi
 
 # Guardrail: invalid vpc_cidr rejected at variable validation
 if grep -q 'can(cidrsubnet(var.vpc_cidr, 4, 0))' \
   "$ROOT/terraform/modules/vpc/variables.tf"; then
-  echo "PASS: vpc_cidr cidrsubnet validation present"
-  PASS=$((PASS + 1))
+  pass "vpc_cidr cidrsubnet validation present"
 else
-  echo "FAIL: missing vpc_cidr cidrsubnet validation" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing vpc_cidr cidrsubnet validation"
 fi
 
 # Guardrail: vpc_cidr prefix must stay within AWS limits (/16-/24 VPC => /20-/28 subnets)
 if grep -q 'tonumber(split("/", var.vpc_cidr)\[1\]) >= 16 && tonumber(split("/", var.vpc_cidr)\[1\]) <= 24' \
   "$ROOT/terraform/modules/vpc/variables.tf"; then
-  echo "PASS: vpc_cidr /16-/24 prefix validation present"
-  PASS=$((PASS + 1))
+  pass "vpc_cidr /16-/24 prefix validation present"
 else
-  echo "FAIL: missing vpc_cidr /16-/24 prefix validation" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing vpc_cidr /16-/24 prefix validation"
 fi
 assert_eq "/16 VPC carves /20 subnets" "10.40.0.0/20" "$(cidrsubnet "10.40.0.0/16" 4 0)"
 assert_eq "/24 VPC carves /28 subnets" "10.40.0.0/28" "$(cidrsubnet "10.40.0.0/24" 4 0)"
@@ -106,11 +85,9 @@ assert_eq "/24 VPC carves /28 subnets" "10.40.0.0/28" "$(cidrsubnet "10.40.0.0/2
 # Guardrail: host bits in vpc_cidr are rejected (cidrsubnet would silently mask them)
 if grep -q 'cidrhost(var.vpc_cidr, 0) == split("/", var.vpc_cidr)\[0\]' \
   "$ROOT/terraform/modules/vpc/variables.tf"; then
-  echo "PASS: vpc_cidr network-address validation present"
-  PASS=$((PASS + 1))
+  pass "vpc_cidr network-address validation present"
 else
-  echo "FAIL: missing vpc_cidr network-address validation" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing vpc_cidr network-address validation"
 fi
 
 # Alternate VPC CIDR (common lab default) keeps the same /20 stride pattern
@@ -127,11 +104,9 @@ for AZ_COUNT in 2 3 4; do
     pub="$(cidrsubnet "$VPC_CIDR" 4 "$i")"
     priv="$(cidrsubnet "$VPC_CIDR" 4 $((i + AZ_COUNT)))"
     if python3 -c "import ipaddress,sys; a=ipaddress.ip_network(sys.argv[1]); b=ipaddress.ip_network(sys.argv[2]); sys.exit(0 if not a.overlaps(b) else 1)" "$pub" "$priv"; then
-      echo "PASS: disjoint az_count=$AZ_COUNT index=$i ($pub vs $priv)"
-      PASS=$((PASS + 1))
+      pass "disjoint az_count=$AZ_COUNT index=$i ($pub vs $priv)"
     else
-      echo "FAIL: overlap az_count=$AZ_COUNT index=$i ($pub vs $priv)" >&2
-      FAIL=$((FAIL + 1))
+      fail "overlap az_count=$AZ_COUNT index=$i ($pub vs $priv)"
     fi
   done
 done
@@ -147,11 +122,9 @@ for i in $(seq 0 $((AZ_COUNT - 1))); do
       block="$(cidrsubnet "$VPC_CIDR" 4 $((i + AZ_COUNT)))"
     fi
     if python3 -c "import ipaddress,sys; parent=ipaddress.ip_network(sys.argv[1]); child=ipaddress.ip_network(sys.argv[2]); sys.exit(0 if child.subnet_of(parent) else 1)" "$VPC_CIDR" "$block"; then
-      echo "PASS: ${kind}[$i] $block inside $VPC_CIDR"
-      PASS=$((PASS + 1))
+      pass "${kind}[$i] $block inside $VPC_CIDR"
     else
-      echo "FAIL: ${kind}[$i] $block not inside $VPC_CIDR" >&2
-      FAIL=$((FAIL + 1))
+      fail "${kind}[$i] $block not inside $VPC_CIDR"
     fi
   done
 done
@@ -159,11 +132,9 @@ done
 # Guardrail: project_name must fit derived IAM role names (<name>-vpc-flow-logs <= 64)
 if grep -q 'length(var.project_name) <= 50' "$ROOT/terraform/modules/vpc/variables.tf" \
   && grep -q 'regex("^\[a-z0-9\]' "$ROOT/terraform/modules/vpc/variables.tf"; then
-  echo "PASS: project_name format and length validation present"
-  PASS=$((PASS + 1))
+  pass "project_name format and length validation present"
 else
-  echo "FAIL: missing project_name format/length validation" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing project_name format/length validation"
 fi
 suffix="-vpc-flow-logs"
 assert_eq "max project_name role length" "64" "$((50 + ${#suffix}))"
@@ -171,22 +142,18 @@ assert_eq "max project_name role length" "64" "$((50 + ${#suffix}))"
 # Guardrail: Flow Logs retention must match AWS-supported CloudWatch values
 if grep -q 'flow_logs_retention_days must be a CloudWatch Logs retention value' \
   "$ROOT/terraform/modules/vpc/variables.tf"; then
-  echo "PASS: flow_logs_retention_days validation present"
-  PASS=$((PASS + 1))
+  pass "flow_logs_retention_days validation present"
 else
-  echo "FAIL: missing flow_logs_retention_days validation" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing flow_logs_retention_days validation"
 fi
 
 # Guardrail: S3 gateway endpoint lives in endpoints.tf and attaches to the private RT
 if grep -q 'resource "aws_vpc_endpoint" "s3"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'count = var.enable_s3_endpoint ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'route_table_ids.*=.*\[aws_route_table.private.id\]' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: optional S3 gateway endpoint present in endpoints.tf"
-  PASS=$((PASS + 1))
+  pass "optional S3 gateway endpoint present in endpoints.tf"
 else
-  echo "FAIL: missing optional S3 gateway endpoint wiring in endpoints.tf" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing optional S3 gateway endpoint wiring in endpoints.tf"
 fi
 
 # Guardrail: DynamoDB gateway endpoint mirrors S3 (private RT, count-gated)
@@ -194,76 +161,61 @@ if grep -q 'resource "aws_vpc_endpoint" "dynamodb"' "$ROOT/terraform/modules/vpc
   && grep -q 'count = var.enable_dynamodb_endpoint ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -A20 'resource "aws_vpc_endpoint" "dynamodb"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
     | grep -q 'route_table_ids.*=.*\[aws_route_table.private.id\]'; then
-  echo "PASS: optional DynamoDB gateway endpoint present in endpoints.tf"
-  PASS=$((PASS + 1))
+  pass "optional DynamoDB gateway endpoint present in endpoints.tf"
 else
-  echo "FAIL: missing optional DynamoDB gateway endpoint wiring" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing optional DynamoDB gateway endpoint wiring"
 fi
 
 # Guardrail: optional NAT gateway is count-gated and pins to primary public AZ
 if grep -q 'resource "aws_nat_gateway" "this"' "$ROOT/terraform/modules/vpc/main.tf" \
   && grep -q 'count = var.enable_nat_gateway ? 1 : 0' "$ROOT/terraform/modules/vpc/main.tf" \
   && grep -Eq 'subnet_id[[:space:]]*=[[:space:]]*aws_subnet\.public\[local\.primary_public_az\]\.id' "$ROOT/terraform/modules/vpc/main.tf"; then
-  echo "PASS: optional NAT gateway gated and AZ-stable"
-  PASS=$((PASS + 1))
+  pass "optional NAT gateway gated and AZ-stable"
 else
-  echo "FAIL: missing optional NAT gateway wiring or stable AZ pin" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing optional NAT gateway wiring or stable AZ pin"
 fi
 
 # Guardrail: Flow Logs resource waits on the IAM publish policy (avoids first-apply race)
 if grep -q 'resource "aws_flow_log" "this"' "$ROOT/terraform/modules/vpc/flow_logs.tf" \
   && grep -A30 'resource "aws_flow_log" "this"' "$ROOT/terraform/modules/vpc/flow_logs.tf" \
     | grep -q 'depends_on = \[aws_iam_role_policy.flow_logs\]'; then
-  echo "PASS: Flow Logs depends on IAM publish policy"
-  PASS=$((PASS + 1))
+  pass "Flow Logs depends on IAM publish policy"
 else
-  echo "FAIL: missing Flow Logs depends_on for IAM publish policy" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing Flow Logs depends_on for IAM publish policy"
 fi
 
 # Guardrail: Flow Logs assume role requires aws:SourceAccount (confused-deputy)
 if grep -q 'data "aws_iam_policy_document" "flow_logs_assume"' "$ROOT/terraform/modules/vpc/flow_logs.tf" \
   && grep -A40 'data "aws_iam_policy_document" "flow_logs_assume"' "$ROOT/terraform/modules/vpc/flow_logs.tf" \
     | grep -q 'aws:SourceAccount'; then
-  echo "PASS: Flow Logs assume role requires aws:SourceAccount"
-  PASS=$((PASS + 1))
+  pass "Flow Logs assume role requires aws:SourceAccount"
 else
-  echo "FAIL: missing aws:SourceAccount on Flow Logs assume role" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing aws:SourceAccount on Flow Logs assume role"
 fi
 
 # Guardrail: private default route uses the NAT when enabled
 if grep -q 'resource "aws_route" "private_default"' "$ROOT/terraform/modules/vpc/main.tf" \
   && grep -q 'nat_gateway_id' "$ROOT/terraform/modules/vpc/main.tf"; then
-  echo "PASS: private default route wires nat_gateway_id"
-  PASS=$((PASS + 1))
+  pass "private default route wires nat_gateway_id"
 else
-  echo "FAIL: missing private default route via NAT gateway" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing private default route via NAT gateway"
 fi
 
 # Guardrail: NAT EIP is VPC-scoped and waits on the internet gateway
 if grep -A20 'resource "aws_eip" "nat"' "$ROOT/terraform/modules/vpc/main.tf" | grep -q 'domain = "vpc"'   && grep -A20 'resource "aws_eip" "nat"' "$ROOT/terraform/modules/vpc/main.tf" | grep -q 'depends_on = \[aws_internet_gateway.this\]'; then
-  echo "PASS: NAT EIP is VPC-scoped and depends on internet gateway"
-  PASS=$((PASS + 1))
+  pass "NAT EIP is VPC-scoped and depends on internet gateway"
 else
-  echo "FAIL: missing NAT EIP domain/depends_on wiring" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing NAT EIP domain/depends_on wiring"
 fi
-
 
 # Guardrail: interface VPC endpoints consolidated via for_each + shared SG
 if grep -q 'resource "aws_vpc_endpoint" "interface"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'for_each = local.interface_endpoint_services' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'vpc_endpoint_type.*=.*"Interface"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'resource "aws_security_group" "vpc_endpoints"' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: interface VPC endpoints use for_each and shared endpoint SG"
-  PASS=$((PASS + 1))
+  pass "interface VPC endpoints use for_each and shared endpoint SG"
 else
-  echo "FAIL: missing consolidated interface VPC endpoint wiring" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing consolidated interface VPC endpoint wiring"
 fi
 
 # Guardrail: Session Manager services remain in the interface map (ssm + companions)
@@ -271,11 +223,9 @@ if grep -q 'ssm.*=.*"ssm"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'ssmmessages.*=.*"ssmmessages"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'ec2messages.*=.*"ec2messages"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'var.enable_ssm_endpoint' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: ssmmessages and ec2messages interface endpoints present in for_each map"
-  PASS=$((PASS + 1))
+  pass "ssmmessages and ec2messages interface endpoints present in for_each map"
 else
-  echo "FAIL: missing ssmmessages/ec2messages entries for Session Manager" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing ssmmessages/ec2messages entries for Session Manager"
 fi
 
 # Guardrail: shared interface resource enables private DNS, private subnets, and SG
@@ -283,30 +233,24 @@ iface_block="$(grep -A20 'resource "aws_vpc_endpoint" "interface"' "$ROOT/terraf
 if echo "$iface_block" | grep -q 'private_dns_enabled.*=.*true' \
   && echo "$iface_block" | grep -q 'local.private_subnet_ids' \
   && echo "$iface_block" | grep -q 'security_group_ids.*=.*\[aws_security_group.vpc_endpoints\[0\].id\]'; then
-  echo "PASS: interface endpoints use private DNS, private subnets, and endpoint SG"
-  PASS=$((PASS + 1))
+  pass "interface endpoints use private DNS, private subnets, and endpoint SG"
 else
-  echo "FAIL: interface endpoints missing private DNS / private subnet / SG wiring" >&2
-  FAIL=$((FAIL + 1))
+  fail "interface endpoints missing private DNS / private subnet / SG wiring"
 fi
 
 # Guardrail: private_subnet_ids local mirrors AZ-ordered private subnets
 if grep -q 'private_subnet_ids = \[' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'aws_subnet.private\[az\].id' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: private_subnet_ids local derived from private subnets"
-  PASS=$((PASS + 1))
+  pass "private_subnet_ids local derived from private subnets"
 else
-  echo "FAIL: missing private_subnet_ids local for interface endpoints" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing private_subnet_ids local for interface endpoints"
 fi
 
 # Keep parity with prior suite size (one assertion for companion wiring)
 if grep -q 'interface_endpoint_services' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: interface_endpoint_services local present for companion endpoint keys"
-  PASS=$((PASS + 1))
+  pass "interface_endpoint_services local present for companion endpoint keys"
 else
-  echo "FAIL: missing interface_endpoint_services local" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing interface_endpoint_services local"
 fi
 
 # Guardrail: endpoint SG allows HTTPS from the VPC CIDR only (Session Manager control plane)
@@ -314,185 +258,147 @@ sg_block="$(grep -A40 'resource "aws_security_group" "vpc_endpoints"' "$ROOT/ter
 if echo "$sg_block" | grep -q 'from_port.*=.*443' \
   && echo "$sg_block" | grep -q 'to_port.*=.*443' \
   && echo "$sg_block" | grep -q 'cidr_blocks.*=.*\[var.vpc_cidr\]'; then
-  echo "PASS: VPC endpoint SG restricts HTTPS to VPC CIDR"
-  PASS=$((PASS + 1))
+  pass "VPC endpoint SG restricts HTTPS to VPC CIDR"
 else
-  echo "FAIL: VPC endpoint SG missing HTTPS-from-VPC CIDR restriction" >&2
-  FAIL=$((FAIL + 1))
+  fail "VPC endpoint SG missing HTTPS-from-VPC CIDR restriction"
 fi
 
 # Guardrail: optional ECR interface endpoints (api + dkr) for private image pulls
 if grep -q 'ecr_api.*=.*"ecr.api"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'ecr_dkr.*=.*"ecr.dkr"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'var.enable_ecr_endpoint' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: optional ECR api/dkr interface endpoints present in for_each map"
-  PASS=$((PASS + 1))
+  pass "optional ECR api/dkr interface endpoints present in for_each map"
 else
-  echo "FAIL: missing optional ECR api/dkr interface endpoint wiring" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing optional ECR api/dkr interface endpoint wiring"
 fi
 
 # Guardrail: ECR keys share the same interface resource (private DNS / subnets / SG)
 if echo "$iface_block" | grep -q 'private_dns_enabled.*=.*true' \
   && echo "$iface_block" | grep -q 'local.private_subnet_ids' \
   && echo "$iface_block" | grep -q 'security_group_ids.*=.*\[aws_security_group.vpc_endpoints\[0\].id\]'; then
-  echo "PASS: ecr_api/ecr_dkr share interface private DNS, private subnets, and endpoint SG"
-  PASS=$((PASS + 1))
+  pass "ecr_api/ecr_dkr share interface private DNS, private subnets, and endpoint SG"
 else
-  echo "FAIL: ECR interface endpoints missing private DNS / private subnet / SG wiring" >&2
-  FAIL=$((FAIL + 1))
+  fail "ECR interface endpoints missing private DNS / private subnet / SG wiring"
 fi
 
 # Keep second ECR parity assertion (map gated by enable_ecr_endpoint)
 if grep -A20 'var.enable_ecr_endpoint ?' "$ROOT/terraform/modules/vpc/endpoints.tf" | grep -q 'ecr_api'; then
-  echo "PASS: ecr_api/ecr_dkr gated by enable_ecr_endpoint in interface map"
-  PASS=$((PASS + 1))
+  pass "ecr_api/ecr_dkr gated by enable_ecr_endpoint in interface map"
 else
-  echo "FAIL: ECR keys not gated by enable_ecr_endpoint" >&2
-  FAIL=$((FAIL + 1))
+  fail "ECR keys not gated by enable_ecr_endpoint"
 fi
 
 # Guardrail: VPC endpoint SG is created when any interface service is enabled
 if grep -q 'count = length(local.interface_endpoint_services) > 0 ? 1 : 0' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: endpoint SG count gates on interface_endpoint_services map"
-  PASS=$((PASS + 1))
+  pass "endpoint SG count gates on interface_endpoint_services map"
 else
-  echo "FAIL: endpoint SG count missing interface_endpoint_services gate" >&2
-  FAIL=$((FAIL + 1))
+  fail "endpoint SG count missing interface_endpoint_services gate"
 fi
 
 # Guardrail: optional CloudWatch Logs interface endpoint in for_each map
 if grep -q 'logs.*=.*"logs"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'var.enable_logs_endpoint' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: optional CloudWatch Logs interface endpoint present in for_each map"
-  PASS=$((PASS + 1))
+  pass "optional CloudWatch Logs interface endpoint present in for_each map"
 else
-  echo "FAIL: missing optional CloudWatch Logs interface endpoint wiring" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing optional CloudWatch Logs interface endpoint wiring"
 fi
 
 # Guardrail: logs key gated by enable_logs_endpoint in interface map
 if grep -A5 'var.enable_logs_endpoint ?' "$ROOT/terraform/modules/vpc/endpoints.tf" | grep -q 'logs.*=.*"logs"'; then
-  echo "PASS: logs endpoint gated by enable_logs_endpoint in interface map"
-  PASS=$((PASS + 1))
+  pass "logs endpoint gated by enable_logs_endpoint in interface map"
 else
-  echo "FAIL: logs key not gated by enable_logs_endpoint" >&2
-  FAIL=$((FAIL + 1))
+  fail "logs key not gated by enable_logs_endpoint"
 fi
 
 # Guardrail: logs_endpoint_id output exposes interface["logs"] when enabled
 if grep -q 'output "logs_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
   && grep -A5 'output "logs_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
     | grep -q 'aws_vpc_endpoint.interface\["logs"\]'; then
-  echo "PASS: logs_endpoint_id output reads interface[\"logs\"]"
-  PASS=$((PASS + 1))
+  pass "logs_endpoint_id output reads interface[\"logs\"]"
 else
-  echo "FAIL: missing logs_endpoint_id output for CloudWatch Logs endpoint" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing logs_endpoint_id output for CloudWatch Logs endpoint"
 fi
 
 # Guardrail: root module passes enable_logs_endpoint into the VPC module
 if grep -q 'enable_logs_endpoint.*=.*var.enable_logs_endpoint' "$ROOT/terraform/main.tf" \
   && grep -q 'variable "enable_logs_endpoint"' "$ROOT/terraform/variables.tf"; then
-  echo "PASS: root module wires enable_logs_endpoint into VPC module"
-  PASS=$((PASS + 1))
+  pass "root module wires enable_logs_endpoint into VPC module"
 else
-  echo "FAIL: root module missing enable_logs_endpoint pass-through" >&2
-  FAIL=$((FAIL + 1))
+  fail "root module missing enable_logs_endpoint pass-through"
 fi
 
 # Guardrail: optional Secrets Manager interface endpoint in for_each map
 if grep -q 'secretsmanager.*=.*"secretsmanager"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'var.enable_secretsmanager_endpoint' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: optional Secrets Manager interface endpoint present in for_each map"
-  PASS=$((PASS + 1))
+  pass "optional Secrets Manager interface endpoint present in for_each map"
 else
-  echo "FAIL: missing optional Secrets Manager interface endpoint wiring" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing optional Secrets Manager interface endpoint wiring"
 fi
 
 # Guardrail: secretsmanager key gated by enable_secretsmanager_endpoint
 if grep -A5 'var.enable_secretsmanager_endpoint ?' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   | grep -q 'secretsmanager.*=.*"secretsmanager"'; then
-  echo "PASS: secretsmanager endpoint gated by enable_secretsmanager_endpoint"
-  PASS=$((PASS + 1))
+  pass "secretsmanager endpoint gated by enable_secretsmanager_endpoint"
 else
-  echo "FAIL: secretsmanager key not gated by enable_secretsmanager_endpoint" >&2
-  FAIL=$((FAIL + 1))
+  fail "secretsmanager key not gated by enable_secretsmanager_endpoint"
 fi
 
 # Guardrail: secretsmanager_endpoint_id output exposes interface["secretsmanager"]
 if grep -q 'output "secretsmanager_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
   && grep -A5 'output "secretsmanager_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
     | grep -q 'aws_vpc_endpoint.interface\["secretsmanager"\]'; then
-  echo "PASS: secretsmanager_endpoint_id output reads interface[\"secretsmanager\"]"
-  PASS=$((PASS + 1))
+  pass "secretsmanager_endpoint_id output reads interface[\"secretsmanager\"]"
 else
-  echo "FAIL: missing secretsmanager_endpoint_id output" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing secretsmanager_endpoint_id output"
 fi
 
 # Guardrail: root module passes enable_secretsmanager_endpoint into the VPC module
 if grep -q 'enable_secretsmanager_endpoint.*=.*var.enable_secretsmanager_endpoint' "$ROOT/terraform/main.tf" \
   && grep -q 'variable "enable_secretsmanager_endpoint"' "$ROOT/terraform/variables.tf"; then
-  echo "PASS: root module wires enable_secretsmanager_endpoint into VPC module"
-  PASS=$((PASS + 1))
+  pass "root module wires enable_secretsmanager_endpoint into VPC module"
 else
-  echo "FAIL: root module missing enable_secretsmanager_endpoint pass-through" >&2
-  FAIL=$((FAIL + 1))
+  fail "root module missing enable_secretsmanager_endpoint pass-through"
 fi
 
 # Guardrail: optional KMS interface endpoint in for_each map
 if grep -q 'kms.*=.*"kms"' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   && grep -q 'var.enable_kms_endpoint' "$ROOT/terraform/modules/vpc/endpoints.tf"; then
-  echo "PASS: optional KMS interface endpoint present in for_each map"
-  PASS=$((PASS + 1))
+  pass "optional KMS interface endpoint present in for_each map"
 else
-  echo "FAIL: missing optional KMS interface endpoint wiring" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing optional KMS interface endpoint wiring"
 fi
 
 # Guardrail: kms key gated by enable_kms_endpoint
 if grep -A5 'var.enable_kms_endpoint ?' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   | grep -q 'kms.*=.*"kms"'; then
-  echo "PASS: kms endpoint gated by enable_kms_endpoint"
-  PASS=$((PASS + 1))
+  pass "kms endpoint gated by enable_kms_endpoint"
 else
-  echo "FAIL: kms key not gated by enable_kms_endpoint" >&2
-  FAIL=$((FAIL + 1))
+  fail "kms key not gated by enable_kms_endpoint"
 fi
 
 # Guardrail: kms_endpoint_id output exposes interface["kms"]
 if grep -q 'output "kms_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
   && grep -A5 'output "kms_endpoint_id"' "$ROOT/terraform/modules/vpc/outputs.tf" \
     | grep -q 'aws_vpc_endpoint.interface\["kms"\]'; then
-  echo "PASS: kms_endpoint_id output reads interface[\"kms\"]"
-  PASS=$((PASS + 1))
+  pass "kms_endpoint_id output reads interface[\"kms\"]"
 else
-  echo "FAIL: missing kms_endpoint_id output" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing kms_endpoint_id output"
 fi
 
 # Guardrail: root module passes enable_kms_endpoint into the VPC module
 if grep -q 'enable_kms_endpoint.*=.*var.enable_kms_endpoint' "$ROOT/terraform/main.tf" \
   && grep -q 'variable "enable_kms_endpoint"' "$ROOT/terraform/variables.tf"; then
-  echo "PASS: root module wires enable_kms_endpoint into VPC module"
-  PASS=$((PASS + 1))
+  pass "root module wires enable_kms_endpoint into VPC module"
 else
-  echo "FAIL: root module missing enable_kms_endpoint pass-through" >&2
-  FAIL=$((FAIL + 1))
+  fail "root module missing enable_kms_endpoint pass-through"
 fi
 
 # Guardrail: ECR interface endpoints require the S3 gateway (layer pulls)
 if grep -A15 'precondition' "$ROOT/terraform/modules/vpc/endpoints.tf" \
   | grep -q '!var.enable_ecr_endpoint || var.enable_s3_endpoint'; then
-  echo "PASS: ECR endpoint precondition requires enable_s3_endpoint"
-  PASS=$((PASS + 1))
+  pass "ECR endpoint precondition requires enable_s3_endpoint"
 else
-  echo "FAIL: missing ECR requires S3 gateway precondition" >&2
-  FAIL=$((FAIL + 1))
+  fail "missing ECR requires S3 gateway precondition"
 fi
 
-echo "---"
-echo "passed=$PASS failed=$FAIL"
-[[ "$FAIL" -eq 0 ]]
+finish

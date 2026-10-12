@@ -23,4 +23,4 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
-        files: ^tests/.*\.sh$
+        files: ^tests/(lib/)?[^/]+\.sh$

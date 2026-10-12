@@ -5,13 +5,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib/assert.sh
+source "$(dirname "$0")/lib/assert.sh"
 ROOT_OUTPUTS="$ROOT/terraform/outputs.tf"
 MODULE_OUTPUTS="$ROOT/terraform/modules/vpc/outputs.tf"
-PASS=0
-FAIL=0
-
-pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
-fail() { echo "FAIL: $1" >&2; FAIL=$((FAIL + 1)); }
 
 # Names declared as `output "<name>"` in a file, one per line.
 output_names() {
@@ -72,6 +69,4 @@ for file in "$ROOT_OUTPUTS" "$MODULE_OUTPUTS"; do
   fi
 done
 
-echo "---"
-echo "passed=$PASS failed=$FAIL"
-[[ "$FAIL" -eq 0 ]]
+finish

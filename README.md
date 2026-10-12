@@ -37,6 +37,7 @@ tests/
   flow_logs_traffic_type_test.sh    # ACCEPT / REJECT / ALL wiring + allowed values
   flow_logs_retention_days_test.sh  # CloudWatch retention allow-list guard
   eks_subnet_tags_test.sh           # optional EKS subnet discovery tag wiring
+  lib/assert.sh                     # shared pass / fail / assert_eq / variable_block / finish helpers
 ```
 
 Default region is `ap-south-1` (Mumbai) so local experiments match common India-region targets.
@@ -247,7 +248,7 @@ The `ci` workflow runs on pushes to `main` and on pull requests that touch `terr
 
 | Job | Step | Local equivalent |
 | --- | --- | --- |
-| `unit` | ShellCheck on `tests/*.sh` | `make shellcheck` |
+| `unit` | ShellCheck on `tests/*.sh` and `tests/lib/*.sh` | `make shellcheck` |
 | `unit` | Shell unit tests | `make test` |
 | `terraform` | `terraform fmt -check -diff -recursive` | `make fmt-check` |
 | `terraform` | Fail if `.terraform.lock.hcl` is missing | `ls terraform/.terraform.lock.hcl` |
@@ -255,6 +256,8 @@ The `ci` workflow runs on pushes to `main` and on pull requests that touch `terr
 | `terraform` | `tflint --init` + `tflint --recursive` (v0.53.0, recommended preset) | `make lint` |
 
 `make ci` chains `test`, `validate`, and `lint` in the same order as the pipeline, so a green local run should mean a green push. ShellCheck and TFLint must be installed for `make shellcheck` and `make lint`.
+
+Each test script sources `tests/lib/assert.sh` for its counters and helpers and ends with `finish`, which prints the `passed=N failed=M` summary and exits non-zero on any failure. The repo `.shellcheckrc` lets ShellCheck follow that `source` line.
 
 TFLint reads `terraform/.tflint.hcl`, which enables the bundled `terraform` ruleset with the `recommended` preset and sets `call_module_type = "local"` so rules also inspect `modules/vpc`. Common failures from that preset are unused declarations, interpolation-only expressions such as `"${var.x}"`, and missing version constraints.
 
