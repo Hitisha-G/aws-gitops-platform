@@ -95,8 +95,7 @@ else
   fail "module missing kubernetes.io/role elb/internal-elb tag keys"
 fi
 
-if grep -q 'kubernetes.io/cluster/\${var.eks_cluster_tag}' "$MODULE_MAIN" \
-  || grep -q 'kubernetes.io/cluster/${var.eks_cluster_tag}' "$MODULE_MAIN"; then
+if grep -qF "kubernetes.io/cluster/\${var.eks_cluster_tag}" "$MODULE_MAIN"; then
   pass "module wires kubernetes.io/cluster/<eks_cluster_tag> shared tag"
 else
   fail "module missing kubernetes.io/cluster/<eks_cluster_tag> shared tag"

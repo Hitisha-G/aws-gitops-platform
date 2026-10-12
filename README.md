@@ -78,7 +78,7 @@ The module always carves **two** subnets per AZ (one public, one private) from `
 
 `N` is `length(availability_zones)`. Public blocks occupy the low half of the carve space; private blocks follow immediately after. Name tags still use 1-based suffixes (`…-public-1`, `…-private-1`) from the AZ list order, while NAT placement uses the **lexicographically first** AZ name so reordering the variable does not move the gateway.
 
-Keep `vpc_cidr` wide enough for your AZ count (a `/16` with `newbits=4` is the documented default). Narrower VPCs still work as long as `cidrsubnet` can allocate `2 * N` blocks.
+Keep `vpc_cidr` wide enough for your AZ count (a `/16` with `newbits=4` is the documented default). The module only accepts IPv4 VPC blocks from `/16` to `/24`, because AWS limits both VPCs and subnets to `/16`–`/28` and the carved subnets are four bits longer than the VPC. The value must also be a network address (`10.40.0.0/16`, not `10.40.1.0/16`); `cidrsubnet` would otherwise mask the host bits silently while AWS rejects the VPC block.
 
 ### Naming rules for `project_name`
 
@@ -182,7 +182,7 @@ Gateway endpoints (S3, DynamoDB) stay on by default because they are free; inter
 
 ### Plan-time endpoint guards
 
-Besides variable validations (`project_name` format and length, CIDR carving, AZ count/uniqueness, Flow Logs retention and traffic type), the VPC module has one endpoint-specific guard in `terraform/modules/vpc/endpoints.tf`:
+Besides variable validations (`project_name` format and length, CIDR carving, `vpc_cidr` prefix range and network address, AZ count/uniqueness, Flow Logs retention and traffic type), the VPC module has one endpoint-specific guard in `terraform/modules/vpc/endpoints.tf`:
 
 | Condition | Error when violated |
 | --- | --- |

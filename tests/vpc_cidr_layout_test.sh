@@ -91,6 +91,28 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+# Guardrail: vpc_cidr prefix must stay within AWS limits (/16-/24 VPC => /20-/28 subnets)
+if grep -q 'tonumber(split("/", var.vpc_cidr)\[1\]) >= 16 && tonumber(split("/", var.vpc_cidr)\[1\]) <= 24' \
+  "$ROOT/terraform/modules/vpc/variables.tf"; then
+  echo "PASS: vpc_cidr /16-/24 prefix validation present"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing vpc_cidr /16-/24 prefix validation" >&2
+  FAIL=$((FAIL + 1))
+fi
+assert_eq "/16 VPC carves /20 subnets" "10.40.0.0/20" "$(cidrsubnet "10.40.0.0/16" 4 0)"
+assert_eq "/24 VPC carves /28 subnets" "10.40.0.0/28" "$(cidrsubnet "10.40.0.0/24" 4 0)"
+
+# Guardrail: host bits in vpc_cidr are rejected (cidrsubnet would silently mask them)
+if grep -q 'cidrhost(var.vpc_cidr, 0) == split("/", var.vpc_cidr)\[0\]' \
+  "$ROOT/terraform/modules/vpc/variables.tf"; then
+  echo "PASS: vpc_cidr network-address validation present"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: missing vpc_cidr network-address validation" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 # Alternate VPC CIDR (common lab default) keeps the same /20 stride pattern
 VPC_CIDR="10.0.0.0/16"
 AZ_COUNT=2

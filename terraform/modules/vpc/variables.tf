@@ -23,6 +23,24 @@ variable "vpc_cidr" {
     condition     = can(cidrsubnet(var.vpc_cidr, 4, 0))
     error_message = "vpc_cidr must be a valid IPv4 CIDR that can be carved with newbits=4 (for example 10.40.0.0/16)."
   }
+
+  # AWS accepts IPv4 VPC and subnet blocks between /16 and /28. With newbits=4
+  # the carved subnets are 4 bits longer than the VPC, so only /16-/24 VPCs work.
+  validation {
+    condition = (
+      can(regex("^[0-9]{1,3}(\\.[0-9]{1,3}){3}/[0-9]{1,2}$", var.vpc_cidr))
+      ? tonumber(split("/", var.vpc_cidr)[1]) >= 16 && tonumber(split("/", var.vpc_cidr)[1]) <= 24
+      : false
+    )
+    error_message = "vpc_cidr must be an IPv4 block between /16 and /24 so the VPC and its newbits=4 subnets (/20-/28) fit AWS size limits."
+  }
+
+  # cidrsubnet() silently masks host bits, so "10.40.1.0/16" would plan with
+  # subnets from 10.40.0.0 while AWS rejects the VPC block itself.
+  validation {
+    condition     = can(cidrhost(var.vpc_cidr, 0)) ? cidrhost(var.vpc_cidr, 0) == split("/", var.vpc_cidr)[0] : false
+    error_message = "vpc_cidr must be a network address with no host bits set (for example 10.40.0.0/16, not 10.40.1.0/16)."
+  }
 }
 
 variable "availability_zones" {
