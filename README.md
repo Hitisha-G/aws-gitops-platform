@@ -37,6 +37,7 @@ tests/
   flow_logs_traffic_type_test.sh    # ACCEPT / REJECT / ALL wiring + allowed values
   flow_logs_retention_days_test.sh  # CloudWatch retention allow-list guard
   eks_subnet_tags_test.sh           # optional EKS subnet discovery tag wiring
+  vpc_endpoints_contract_test.sh    # endpoint toggles, prefix, ECR→S3 precondition
   lib/assert.sh                     # shared pass / fail / assert_eq / variable_block / finish helpers
 ```
 
@@ -238,6 +239,7 @@ bash tests/outputs_contract_test.sh
 bash tests/flow_logs_traffic_type_test.sh
 bash tests/flow_logs_retention_days_test.sh
 bash tests/eks_subnet_tags_test.sh
+bash tests/vpc_endpoints_contract_test.sh
 ```
 
 CI runs fmt, validate, and those shell checks on every push to `main`.
