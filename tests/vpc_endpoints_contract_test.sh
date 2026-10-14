@@ -55,19 +55,21 @@ for spec in "${ENDPOINT_SPECS[@]}"; do
 done
 
 # 3. Shared regional service-name prefix used by gateway and interface endpoints.
+# Use grep -F + escaped ${...} so ShellCheck SC2016 stays quiet (same pattern as
+# the EKS cluster tag check in tests/eks_subnet_tags_test.sh).
 if grep -q 'endpoint_service_prefix' "$ENDPOINTS" \
-  && grep -q 'com.amazonaws.\${data.aws_region.current.name}' "$ENDPOINTS"; then
+  && grep -qF "com.amazonaws.\${data.aws_region.current.name}" "$ENDPOINTS"; then
   pass "endpoints.tf defines regional endpoint_service_prefix"
 else
   fail "endpoints.tf missing endpoint_service_prefix local"
 fi
-if grep -q 'service_name.*=.*"\${local.endpoint_service_prefix}.s3"' "$ENDPOINTS" \
-  && grep -q 'service_name.*=.*"\${local.endpoint_service_prefix}.dynamodb"' "$ENDPOINTS"; then
+if grep -qF "\${local.endpoint_service_prefix}.s3" "$ENDPOINTS" \
+  && grep -qF "\${local.endpoint_service_prefix}.dynamodb" "$ENDPOINTS"; then
   pass "gateway endpoints use local.endpoint_service_prefix"
 else
   fail "gateway S3/DynamoDB service_name not using endpoint_service_prefix"
 fi
-if grep -q 'service_name.*=.*"\${local.endpoint_service_prefix}.\${each.value}"' "$ENDPOINTS"; then
+if grep -qF "\${local.endpoint_service_prefix}.\${each.value}" "$ENDPOINTS"; then
   pass "interface endpoints use local.endpoint_service_prefix"
 else
   fail "interface endpoint service_name not using endpoint_service_prefix"
