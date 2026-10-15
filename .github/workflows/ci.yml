@@ -7,13 +7,13 @@ on:
       - "terraform/**"
       - "tests/**"
       - "Makefile"
-      - ".github/workflows/ci.yml"
+      - ".github/workflows/**"
   pull_request:
     paths:
       - "terraform/**"
       - "tests/**"
       - "Makefile"
-      - ".github/workflows/ci.yml"
+      - ".github/workflows/**"
   workflow_dispatch:
 
 concurrency:
@@ -28,8 +28,24 @@ env:
   TF_INPUT: "false"
 
 jobs:
+  workflow-lint:
+    name: lint workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          echo "$PWD" >> "$GITHUB_PATH"
+      - name: Run actionlint
+        run: actionlint -color
+
   unit:
     runs-on: ubuntu-latest
+    needs: [workflow-lint]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4

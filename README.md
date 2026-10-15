@@ -8,7 +8,7 @@ Built for platform / DevOps workflows — local-friendly validation first, with 
 
 - `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB/SSM/ECR/Logs/Secrets Manager/KMS endpoints; EKS/IRSA next)
 - `charts/sample-app` — demo workload chart (planned)
-- `.github/workflows/ci.yml` — ShellCheck + shell unit tests, then `terraform fmt`, lock-file check, `validate`, and TFLint (Helm lint when charts land)
+- `.github/workflows/ci.yml` — actionlint on the workflows, ShellCheck + shell unit tests, then `terraform fmt`, lock-file check, `validate`, and TFLint (Helm lint when charts land)
 - `tests/` — shell unit checks for VPC CIDR carving, input validation, and the root outputs contract (run in CI)
 
 ## Repository layout
@@ -246,10 +246,11 @@ CI runs fmt, validate, and those shell checks on every push to `main`.
 
 ## CI checks and how to reproduce them locally
 
-The `ci` workflow runs on pushes to `main` and on pull requests that touch `terraform/`, `tests/`, the `Makefile`, or the workflow itself. It has two jobs, and the Terraform job only starts after the unit job passes:
+The `ci` workflow runs on pushes to `main` and on pull requests that touch `terraform/`, `tests/`, the `Makefile`, or anything under `.github/workflows/`. It has three jobs that run in sequence: `workflow-lint` checks the workflow files themselves, `unit` starts only after that passes, and `terraform` starts only after `unit` passes:
 
 | Job | Step | Local equivalent |
 | --- | --- | --- |
+| `workflow-lint` | actionlint v1.7.7 on `.github/workflows/*.yml` (also runs ShellCheck on `run:` blocks) | `make actionlint` |
 | `unit` | ShellCheck on `tests/*.sh` and `tests/lib/*.sh` | `make shellcheck` |
 | `unit` | Shell unit tests | `make test` |
 | `terraform` | `terraform fmt -check -diff -recursive` | `make fmt-check` |
@@ -257,7 +258,7 @@ The `ci` workflow runs on pushes to `main` and on pull requests that touch `terr
 | `terraform` | `terraform init -backend=false` + `validate` | `make validate` |
 | `terraform` | `tflint --init` + `tflint --recursive` (v0.53.0, recommended preset) | `make lint` |
 
-`make ci` chains `test`, `validate`, and `lint` in the same order as the pipeline, so a green local run should mean a green push. ShellCheck and TFLint must be installed for `make shellcheck` and `make lint`.
+`make ci` chains `actionlint`, `test`, `validate`, and `lint` in the same order as the pipeline, so a green local run should mean a green push. actionlint, ShellCheck, and TFLint must be installed for `make actionlint`, `make shellcheck`, and `make lint`.
 
 Each test script sources `tests/lib/assert.sh` for its counters and helpers and ends with `finish`, which prints the `passed=N failed=M` summary and exits non-zero on any failure. The repo `.shellcheckrc` lets ShellCheck follow that `source` line.
 

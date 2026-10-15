@@ -5,7 +5,7 @@ TEST_DIR := tests
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt fmt-check validate init test lint shellcheck ci clean
+.PHONY: help fmt fmt-check validate init test lint shellcheck actionlint ci clean
 
 help:
 	@printf '%s\n' \
@@ -16,8 +16,9 @@ help:
 		'  make validate   - fmt check + init + validate' \
 		'  make lint       - tflint --init + tflint --recursive (needs tflint)' \
 		'  make shellcheck - shellcheck tests/*.sh + tests/lib/*.sh (needs shellcheck)' \
+		'  make actionlint - lint .github/workflows with actionlint (needs actionlint)' \
 		'  make test       - shell unit checks under tests/' \
-		'  make ci         - test + validate + lint (mirrors GitHub Actions)' \
+		'  make ci         - actionlint + test + validate + lint (mirrors GitHub Actions)' \
 		'  make clean      - remove local .terraform dirs'
 
 fmt:
@@ -40,13 +41,16 @@ lint:
 shellcheck:
 	shellcheck $(TEST_DIR)/*.sh $(TEST_DIR)/lib/*.sh
 
+actionlint:
+	actionlint
+
 test:
 	@for script in $(TEST_DIR)/*.sh; do \
 		echo "==> $$script"; \
 		bash "$$script"; \
 	done
 
-ci: test validate lint
+ci: actionlint test validate lint
 
 clean:
 	rm -rf $(TF_DIR)/.terraform
