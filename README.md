@@ -260,6 +260,9 @@ The `ci` workflow runs on pushes to `main` and on pull requests that touch `terr
 
 `make ci` chains `actionlint`, `test`, `validate`, and `lint` in the same order as the pipeline, so a green local run should mean a green push. actionlint, ShellCheck, and TFLint must be installed for `make actionlint`, `make shellcheck`, and `make lint`.
 
+Path filters keep the workflow quiet when only docs or other non-listed files change: pushes and pull requests that do not touch `terraform/`, `tests/`, the `Makefile`, or `.github/workflows/` skip all three jobs. Use **Run workflow** (`workflow_dispatch`) on the Actions tab when you want a full check without those path changes. Concurrent runs on the same branch share the `ci-<workflow>-<ref>` group with `cancel-in-progress`, so a newer push cancels an older in-flight run on that ref. The workflow only needs `contents: read`.
+
+
 Each test script sources `tests/lib/assert.sh` for its counters and helpers and ends with `finish`, which prints the `passed=N failed=M` summary and exits non-zero on any failure. The repo `.shellcheckrc` lets ShellCheck follow that `source` line.
 
 TFLint reads `terraform/.tflint.hcl`, which enables the bundled `terraform` ruleset with the `recommended` preset and sets `call_module_type = "local"` so rules also inspect `modules/vpc`. Common failures from that preset are unused declarations, interpolation-only expressions such as `"${var.x}"`, and missing version constraints.
