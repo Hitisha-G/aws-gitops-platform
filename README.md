@@ -32,12 +32,12 @@ terraform/
       variables.tf
       outputs.tf
 tests/
-  vpc_cidr_layout_test.sh           # subnet carving + input validation guards
+  vpc_cidr_layout_test.sh           # subnet carving, input validation, NAT + Flow Logs guards
   outputs_contract_test.sh          # root outputs match declared VPC module outputs
   flow_logs_traffic_type_test.sh    # ACCEPT / REJECT / ALL wiring + allowed values
   flow_logs_retention_days_test.sh  # CloudWatch retention allow-list guard
   eks_subnet_tags_test.sh           # optional EKS subnet discovery tag wiring
-  vpc_endpoints_contract_test.sh    # endpoint toggles, prefix, ECR→S3 precondition
+  vpc_endpoints_contract_test.sh    # endpoint toggles, interface wiring + SG, outputs, ECR→S3 precondition
   lib/assert.sh                     # shared pass / fail / assert_eq / variable_block / finish helpers
 ```
 

@@ -3,6 +3,7 @@
 # Keeps root toggles, module variables, gateway/interface wiring, the shared
 # regional service-name prefix, and the ECR→S3 precondition aligned so a
 # private ECR pull cannot be enabled without the S3 gateway layers need.
+# Also owns interface endpoint wiring (shared SG, private DNS) and outputs.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,6 +13,7 @@ MODULE_VARS="$ROOT/terraform/modules/vpc/variables.tf"
 ROOT_VARS="$ROOT/terraform/variables.tf"
 ROOT_MAIN="$ROOT/terraform/main.tf"
 ENDPOINTS="$ROOT/terraform/modules/vpc/endpoints.tf"
+MODULE_OUTPUTS="$ROOT/terraform/modules/vpc/outputs.tf"
 TFVARS_EXAMPLE="$ROOT/terraform/terraform.tfvars.example"
 
 default_of() {
@@ -137,6 +139,68 @@ for spec in "${ENDPOINT_SPECS[@]}"; do
     pass "tfvars example documents $name"
   else
     fail "tfvars example missing $name"
+  fi
+done
+
+# 8. One shared interface resource: for_each over the service map, private DNS,
+#    AZ-ordered private subnets, and the shared endpoint security group.
+iface_block="$(awk '
+  /^resource "aws_vpc_endpoint" "interface"/ { inside = 1 }
+  inside { print }
+  inside && /^}/ { exit }
+' "$ENDPOINTS")"
+if printf '%s\n' "$iface_block" | grep -q 'for_each = local.interface_endpoint_services' \
+  && printf '%s\n' "$iface_block" | grep -q 'vpc_endpoint_type.*=.*"Interface"'; then
+  pass "interface endpoints use for_each over interface_endpoint_services"
+else
+  fail "interface endpoints not consolidated via for_each"
+fi
+if printf '%s\n' "$iface_block" | grep -q 'private_dns_enabled.*=.*true' \
+  && printf '%s\n' "$iface_block" | grep -q 'subnet_ids.*=.*local.private_subnet_ids' \
+  && printf '%s\n' "$iface_block" | grep -q 'security_group_ids.*=.*\[aws_security_group.vpc_endpoints\[0\].id\]'; then
+  pass "interface endpoints use private DNS, private subnets, and endpoint SG"
+else
+  fail "interface endpoints missing private DNS / private subnet / SG wiring"
+fi
+if grep -q 'private_subnet_ids = \[' "$ENDPOINTS" \
+  && grep -q 'aws_subnet.private\[az\].id' "$ENDPOINTS"; then
+  pass "private_subnet_ids local derived from AZ-ordered private subnets"
+else
+  fail "missing private_subnet_ids local for interface endpoints"
+fi
+
+# 9. Endpoint SG exists only when an interface service is on, and only allows
+#    HTTPS to and from the VPC CIDR.
+sg_block="$(awk '
+  /^resource "aws_security_group" "vpc_endpoints"/ { inside = 1 }
+  inside { print }
+  inside && /^}/ { exit }
+' "$ENDPOINTS")"
+if printf '%s\n' "$sg_block" | grep -q 'count = length(local.interface_endpoint_services) > 0 ? 1 : 0'; then
+  pass "endpoint SG count gates on interface_endpoint_services"
+else
+  fail "endpoint SG count missing interface_endpoint_services gate"
+fi
+if printf '%s\n' "$sg_block" | grep -q 'from_port.*=.*443' \
+  && printf '%s\n' "$sg_block" | grep -q 'to_port.*=.*443' \
+  && printf '%s\n' "$sg_block" | grep -q 'cidr_blocks.*=.*\[var.vpc_cidr\]'; then
+  pass "endpoint SG restricts HTTPS to the VPC CIDR"
+else
+  fail "endpoint SG missing HTTPS-from-VPC CIDR restriction"
+fi
+
+# 10. Each interface output reads its own map key behind the matching toggle.
+for pair in 'ssm:enable_ssm_endpoint' 'ssmmessages:enable_ssm_endpoint' \
+  'ec2messages:enable_ssm_endpoint' 'ecr_api:enable_ecr_endpoint' \
+  'ecr_dkr:enable_ecr_endpoint' 'logs:enable_logs_endpoint' \
+  'secretsmanager:enable_secretsmanager_endpoint' 'kms:enable_kms_endpoint'; do
+  key="${pair%%:*}"
+  flag="${pair##*:}"
+  if grep -A3 "^output \"${key}_endpoint_id\"" "$MODULE_OUTPUTS" \
+    | grep -qF "var.${flag} ? aws_vpc_endpoint.interface[\"${key}\"].id : null"; then
+    pass "${key}_endpoint_id output reads interface[\"${key}\"] behind $flag"
+  else
+    fail "${key}_endpoint_id output missing or not gated by $flag"
   fi
 done
 
