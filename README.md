@@ -65,7 +65,7 @@ The `terraform/modules/vpc` module expects:
 | `enable_secretsmanager_endpoint` | When true, place an interface VPC endpoint for Secrets Manager in private subnets (default false; hourly charge; private secret fetches without NAT) |
 | `enable_kms_endpoint` | When true, place an interface VPC endpoint for KMS in private subnets (default false; hourly charge; private encrypt/decrypt without NAT) |
 | `enable_eks_subnet_tags` | When true, tag public subnets with `kubernetes.io/role/elb=1` and private with `kubernetes.io/role/internal-elb=1` for EKS load balancer discovery (default false) |
-| `eks_cluster_tag` | Optional cluster name; when non-empty and `enable_eks_subnet_tags` is true, also set `kubernetes.io/cluster/<name>=shared` on public and private subnets (default `""`) |
+| `eks_cluster_tag` | Optional cluster name; when non-empty and `enable_eks_subnet_tags` is true, also set `kubernetes.io/cluster/<name>=shared` on public and private subnets; must be a valid EKS cluster name (1-100 letters, digits, `-`, `_`, starting with a letter or digit) (default `""`) |
 
 Shared tag and CIDR locals live in the module so subnet math and tagging stay consistent as more modules are added. Public and private subnets use `for_each` keyed by AZ name so reordering the AZ list does not force needless replacements.
 

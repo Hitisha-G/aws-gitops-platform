@@ -117,4 +117,36 @@ else
   fail "tfvars example missing EKS subnet tag knobs"
 fi
 
+# 8. eks_cluster_tag rejects names EKS would not accept, in module and root.
+for vars_file in "$MODULE_VARS" "$ROOT_VARS"; do
+  label="${vars_file#"$ROOT"/}"
+  if variable_block "$vars_file" eks_cluster_tag | grep -qF 'regex("^[0-9A-Za-z][A-Za-z0-9_-]{0,99}$", var.eks_cluster_tag)'; then
+    pass "$label validates eks_cluster_tag against the EKS cluster name pattern"
+  else
+    fail "$label missing eks_cluster_tag name validation"
+  fi
+  if variable_block "$vars_file" eks_cluster_tag | grep -qF 'var.eks_cluster_tag == ""'; then
+    pass "$label keeps an empty eks_cluster_tag valid"
+  else
+    fail "$label eks_cluster_tag validation does not allow the empty default"
+  fi
+done
+
+# Mirror the HCL pattern in bash so the accepted/rejected examples stay honest.
+EKS_NAME_RE='^[0-9A-Za-z][A-Za-z0-9_-]{0,99}$'
+for good in platform-dev eks_prod_01 a "$(printf 'a%.0s' {1..100})"; do
+  if [[ "$good" =~ $EKS_NAME_RE ]]; then
+    pass "accepts EKS name '${good:0:20}'"
+  else
+    fail "rejects valid EKS name '${good:0:20}'"
+  fi
+done
+for bad in -platform "platform dev" platform.dev "platform/dev" "$(printf 'a%.0s' {1..101})"; do
+  if [[ "$bad" =~ $EKS_NAME_RE ]]; then
+    fail "accepts invalid EKS name '${bad:0:20}'"
+  else
+    pass "rejects invalid EKS name '${bad:0:20}'"
+  fi
+done
+
 finish

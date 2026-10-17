@@ -98,4 +98,12 @@ variable "eks_cluster_tag" {
   type        = string
   description = "Optional EKS cluster name for kubernetes.io/cluster/<name>=shared subnet tags (requires enable_eks_subnet_tags)."
   default     = ""
+
+  # EKS cluster names are 1-100 chars, start with a letter or digit, and use
+  # only letters, digits, hyphens, and underscores. Anything else would put an
+  # invalid kubernetes.io/cluster/<name> tag key on every subnet.
+  validation {
+    condition     = var.eks_cluster_tag == "" || can(regex("^[0-9A-Za-z][A-Za-z0-9_-]{0,99}$", var.eks_cluster_tag))
+    error_message = "eks_cluster_tag must be empty or a valid EKS cluster name: 1-100 letters, digits, hyphens, or underscores, starting with a letter or digit."
+  }
 }
