@@ -192,6 +192,27 @@ Besides variable validations (`project_name` format and length, CIDR carving, `v
 
 Turn ECR on only with S3 left enabled (or re-enable S3 first). Other interface flags (SSM, Logs, Secrets Manager, KMS) have no cross-service preconditions today.
 
+### Troubleshooting plan-time errors
+
+Every guard above fails during `terraform plan` (or `terraform validate` for variable rules), before anything is created. Search the plan output for the start of the message to find the fix:
+
+| Error starts with | Cause | Fix |
+| --- | --- | --- |
+| `project_name must use lowercase letters` | Uppercase, underscores, spaces, or a leading/trailing hyphen | Use a slug such as `platform-dev` |
+| `project_name must be 50 characters or fewer` | Derived `<name>-vpc-flow-logs` IAM role would pass 64 characters | Shorten the slug |
+| `vpc_cidr must be a valid IPv4 CIDR` | Not parseable as an IPv4 block | Use `a.b.c.d/nn`, for example `10.40.0.0/16` |
+| `vpc_cidr must be an IPv4 block between /16 and /24` | Prefix too wide or too narrow for `newbits=4` subnets | Pick a `/16` to `/24` block |
+| `vpc_cidr must be a network address` | Host bits set, such as `10.40.1.0/16` | Use the network address, such as `10.40.0.0/16` |
+| `Provide at least two availability zones` | One AZ in `availability_zones` | List two or more AZs in the region |
+| `availability_zones must not contain duplicate entries` | Same AZ listed twice | Remove the duplicate |
+| `vpc_cidr subnet carving (newbits=4) supports at most 8` | More than 8 AZs | Trim the AZ list |
+| `flow_logs_retention_days must be a CloudWatch Logs retention value` | A day count CloudWatch Logs does not offer, such as `10` | Use an allowed value such as `7`, `14`, or `30` |
+| `flow_logs_traffic_type must be one of` | Lowercase or unknown value | Use `ACCEPT`, `REJECT`, or `ALL` |
+| `eks_cluster_tag must be empty or a valid EKS cluster name` | Dots, spaces, a leading `-`/`_`, or more than 100 characters | Match the real EKS cluster name, or leave it `""` |
+| `enable_ecr_endpoint requires enable_s3_endpoint` | ECR interface endpoints on with the S3 gateway off | Set `enable_s3_endpoint = true` |
+
+The root stack repeats the `eks_cluster_tag` rule in `terraform/variables.tf`, so a bad value in `terraform.tfvars` is reported against the root variable before the module sees it.
+
 ## Stack outputs
 
 After `terraform apply`, the root stack exposes IDs that later modules (EKS, IRSA, Helm) can wire without re-looking up the VPC:
