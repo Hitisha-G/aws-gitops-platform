@@ -5,7 +5,7 @@ TEST_DIR := tests
 
 .DEFAULT_GOAL := help
 
-.PHONY: help fmt fmt-check validate init test lint shellcheck actionlint ci clean
+.PHONY: help fmt fmt-check validate init test lint shellcheck actionlint checkov ci clean
 
 help:
 	@printf '%s\n' \
@@ -17,6 +17,7 @@ help:
 		'  make lint       - tflint --init + tflint --recursive (needs tflint)' \
 		'  make shellcheck - shellcheck tests/*.sh + tests/lib/*.sh (needs shellcheck)' \
 		'  make actionlint - lint .github/workflows with actionlint (needs actionlint)' \
+		'  make checkov    - Checkov IaC scan of terraform/, report-only (needs checkov)' \
 		'  make test       - shell unit checks under tests/' \
 		'  make ci         - actionlint + test + validate + lint (mirrors GitHub Actions)' \
 		'  make clean      - remove local .terraform dirs'
@@ -43,6 +44,9 @@ shellcheck:
 
 actionlint:
 	actionlint
+
+checkov:
+	checkov -d $(TF_DIR) --framework terraform --soft-fail --compact --quiet
 
 test:
 	@for script in $(TEST_DIR)/*.sh; do \

@@ -59,6 +59,44 @@ jobs:
       - name: Shell unit tests (tests/*.sh)
         run: make test
 
+  iac-scan:
+    name: checkov (report-only)
+    runs-on: ubuntu-latest
+    needs: [workflow-lint]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Checkov
+        run: pip install --quiet checkov==3.3.29
+      # Report-only for now: findings land in code scanning and the job summary
+      # without blocking merges. Flip off --soft-fail once the backlog is clear.
+      - name: Scan Terraform with Checkov
+        run: |
+          checkov -d terraform --framework terraform \
+            --soft-fail --compact --quiet \
+            -o cli -o sarif --output-file-path console,checkov.sarif \
+            | tee checkov.txt
+          {
+            echo "### Checkov findings"
+            echo '```'
+            cat checkov.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload SARIF to code scanning
+        if: always() && hashFiles('checkov.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov.sarif
+          category: checkov-terraform
+
   terraform:
     runs-on: ubuntu-latest
     needs: [unit]
