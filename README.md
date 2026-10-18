@@ -267,7 +267,7 @@ CI runs fmt, validate, and those shell checks on every push to `main`.
 
 ## CI checks and how to reproduce them locally
 
-The `ci` workflow runs on pushes to `main` and on pull requests that touch `terraform/`, `tests/`, the `Makefile`, or anything under `.github/workflows/`. It has three jobs that run in sequence: `workflow-lint` checks the workflow files themselves, `unit` starts only after that passes, and `terraform` starts only after `unit` passes:
+The `ci` workflow runs on pushes to `main` and on pull requests that touch `terraform/`, `tests/`, the `Makefile`, or anything under `.github/workflows/`. It has four jobs. `workflow-lint` checks the workflow files themselves; `unit` and the report-only `iac-scan` both start once that passes, and `terraform` starts only after `unit` passes:
 
 | Job | Step | Local equivalent |
 | --- | --- | --- |
@@ -278,10 +278,27 @@ The `ci` workflow runs on pushes to `main` and on pull requests that touch `terr
 | `terraform` | Fail if `.terraform.lock.hcl` is missing | `ls terraform/.terraform.lock.hcl` |
 | `terraform` | `terraform init -backend=false` + `validate` | `make validate` |
 | `terraform` | `tflint --init` + `tflint --recursive` (v0.53.0, recommended preset) | `make lint` |
+| `iac-scan` | Checkov 3.3.29 on `terraform/` with `--soft-fail`, results in the job summary and code scanning | `make checkov` |
 
-`make ci` chains `actionlint`, `test`, `validate`, and `lint` in the same order as the pipeline, so a green local run should mean a green push. actionlint, ShellCheck, and TFLint must be installed for `make actionlint`, `make shellcheck`, and `make lint`.
+`make ci` chains `actionlint`, `test`, `validate`, and `lint` in the same order as the pipeline, so a green local run should mean a green push. actionlint, ShellCheck, and TFLint must be installed for `make actionlint`, `make shellcheck`, and `make lint`. `make checkov` is not part of `make ci` because the scan never fails the build; install it with `pip install checkov==3.3.29` to match CI.
 
-Path filters keep the workflow quiet when only docs or other non-listed files change: pushes and pull requests that do not touch `terraform/`, `tests/`, the `Makefile`, or `.github/workflows/` skip all three jobs. Use **Run workflow** (`workflow_dispatch`) on the Actions tab when you want a full check without those path changes. Concurrent runs on the same branch share the `ci-<workflow>-<ref>` group with `cancel-in-progress`, so a newer push cancels an older in-flight run on that ref. The workflow only needs `contents: read`.
+Path filters keep the workflow quiet when only docs or other non-listed files change: pushes and pull requests that do not touch `terraform/`, `tests/`, the `Makefile`, or `.github/workflows/` skip every job. Use **Run workflow** (`workflow_dispatch`) on the Actions tab when you want a full check without those path changes. Concurrent runs on the same branch share the `ci-<workflow>-<ref>` group with `cancel-in-progress`, so a newer push cancels an older in-flight run on that ref. The workflow only needs `contents: read`.
+
+### Checkov IaC scan (report-only)
+
+The `iac-scan` job runs Checkov against `terraform/` with `--soft-fail`, so findings never block a merge. Results show up in two places:
+
+- the **Checkov findings** block in the job summary of each run, and
+- the **Security > Code scanning** tab, from the SARIF upload under the `checkov-terraform` category. The upload is skipped for pull requests from forks, which do not get `security-events: write`.
+
+Known open findings on the VPC module, tracked as follow-ups:
+
+| Check | Resource | Why it fires | Planned fix |
+| --- | --- | --- | --- |
+| `CKV_AWS_130` | `aws_subnet.public` | `map_public_ip_on_launch = true` gives every instance in a public subnet a public IP | Default it to `false` behind a variable; load balancers and NAT gateways do not need it |
+| `CKV2_AWS_12` | `aws_vpc.this` | The VPC's default security group keeps AWS's allow-all rules | Manage `aws_default_security_group` with no ingress or egress rules |
+
+Once both are fixed, the plan is to drop `--soft-fail` so new findings fail CI. To silence a check that is intentional, add an inline `# checkov:skip=<CHECK_ID>: <reason>` comment on the resource rather than skipping it repo-wide.
 
 
 Each test script sources `tests/lib/assert.sh` for its counters and helpers and ends with `finish`, which prints the `passed=N failed=M` summary and exits non-zero on any failure. The repo `.shellcheckrc` lets ShellCheck follow that `source` line.
