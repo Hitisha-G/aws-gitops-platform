@@ -92,7 +92,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload SARIF to code scanning
         if: always() && hashFiles('checkov.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: checkov.sarif
           category: checkov-terraform
