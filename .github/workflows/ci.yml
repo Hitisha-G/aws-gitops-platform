@@ -167,3 +167,36 @@ jobs:
         if: steps.check.outputs.present == 'true'
         working-directory: terraform
         run: tflint --recursive
+
+  terraform-min:
+    name: terraform validate (minimum version)
+    runs-on: ubuntu-latest
+    needs: [unit]
+    timeout-minutes: 10
+    # versions.tf promises required_version >= 1.6.0, so validate against the
+    # oldest supported release too. Catches syntax or functions that only exist
+    # in newer Terraform before they reach someone pinned to 1.6.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read minimum Terraform version
+        id: min
+        run: |
+          floor=$(sed -nE 's/^[[:space:]]*required_version[[:space:]]*=[[:space:]]*">=[[:space:]]*([0-9]+\.[0-9]+)\.[0-9]+".*/\1/p' terraform/versions.tf)
+          if [ -z "$floor" ]; then
+            echo "::error file=terraform/versions.tf::Could not parse a '>= X.Y.Z' required_version constraint."
+            exit 1
+          fi
+          echo "series=$floor" >> "$GITHUB_OUTPUT"
+          echo "Validating against the latest Terraform $floor.x release"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "${{ steps.min.outputs.series }}.x"
+          terraform_wrapper: false
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init -backend=false -lockfile=readonly
+      - name: Terraform validate
+        working-directory: terraform
+        run: terraform validate

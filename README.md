@@ -267,7 +267,7 @@ CI runs fmt, validate, and those shell checks on every push to `main`.
 
 ## CI checks and how to reproduce them locally
 
-The `ci` workflow runs on pushes to `main` and on pull requests that touch `terraform/`, `tests/`, the `Makefile`, or anything under `.github/workflows/`. It has four jobs. `workflow-lint` checks the workflow files themselves; `unit` and the report-only `iac-scan` both start once that passes, and `terraform` starts only after `unit` passes:
+The `ci` workflow runs on pushes to `main` and on pull requests that touch `terraform/`, `tests/`, the `Makefile`, or anything under `.github/workflows/`. It has five jobs. `workflow-lint` checks the workflow files themselves; `unit` and the report-only `iac-scan` both start once that passes, and `terraform` and `terraform-min` start only after `unit` passes:
 
 | Job | Step | Local equivalent |
 | --- | --- | --- |
@@ -278,9 +278,10 @@ The `ci` workflow runs on pushes to `main` and on pull requests that touch `terr
 | `terraform` | Fail if `.terraform.lock.hcl` is missing | `ls terraform/.terraform.lock.hcl` |
 | `terraform` | `terraform init -backend=false` + `validate` | `make validate` |
 | `terraform` | `tflint --init` + `tflint --recursive` (v0.53.0, recommended preset) | `make lint` |
+| `terraform-min` | `init -backend=false -lockfile=readonly` + `validate` on the oldest Terraform series allowed by `required_version` (currently 1.6.x) | `make validate` with a Terraform 1.6 binary on `PATH` |
 | `iac-scan` | Checkov 3.3.29 on `terraform/` with `--soft-fail`, results in the job summary and code scanning | `make checkov` |
 
-`make ci` chains `actionlint`, `test`, `validate`, and `lint` in the same order as the pipeline, so a green local run should mean a green push. actionlint, ShellCheck, and TFLint must be installed for `make actionlint`, `make shellcheck`, and `make lint`. `make checkov` is not part of `make ci` because the scan never fails the build; install it with `pip install checkov==3.3.29` to match CI.
+`make ci` chains `actionlint`, `test`, `validate`, and `lint` in the same order as the pipeline, so a green local run should mean a green push. actionlint, ShellCheck, and TFLint must be installed for `make actionlint`, `make shellcheck`, and `make lint`. `make checkov` is not part of `make ci` because the scan never fails the build; install it with `pip install checkov==3.3.29` to match CI. `terraform-min` reads the floor from `terraform/versions.tf`, so raising `required_version` there moves the job to the new minimum without editing the workflow.
 
 Path filters keep the workflow quiet when only docs or other non-listed files change: pushes and pull requests that do not touch `terraform/`, `tests/`, the `Makefile`, or `.github/workflows/` skip every job. Use **Run workflow** (`workflow_dispatch`) on the Actions tab when you want a full check without those path changes. Concurrent runs on the same branch share the `ci-<workflow>-<ref>` group with `cancel-in-progress`, so a newer push cancels an older in-flight run on that ref. The workflow only needs `contents: read`.
 
