@@ -72,3 +72,8 @@ output "kms_endpoint_id" {
   description = "KMS interface VPC endpoint ID when the endpoint is enabled."
   value       = module.vpc.kms_endpoint_id
 }
+
+output "sts_endpoint_id" {
+  description = "STS interface VPC endpoint ID when the endpoint is enabled."
+  value       = module.vpc.sts_endpoint_id
+}

@@ -140,6 +140,12 @@ variable "enable_kms_endpoint" {
   default     = false
 }
 
+variable "enable_sts_endpoint" {
+  type        = bool
+  description = "When true, create an interface VPC endpoint for STS in private subnets (regional AssumeRoleWithWebIdentity for IRSA without NAT)."
+  default     = false
+}
+
 variable "enable_eks_subnet_tags" {
   type        = bool
   description = "When true, tag public subnets for internet-facing ELBs and private subnets for internal ELBs (kubernetes.io/role/*)."

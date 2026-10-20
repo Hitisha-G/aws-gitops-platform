@@ -6,7 +6,7 @@ Built for platform / DevOps workflows — local-friendly validation first, with 
 
 ## What's in here
 
-- `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB/SSM/ECR/Logs/Secrets Manager/KMS endpoints; EKS/IRSA next)
+- `terraform/` — root stack and reusable modules (VPC with NAT, flow logs, S3/DynamoDB/SSM/ECR/Logs/Secrets Manager/KMS/STS endpoints; EKS/IRSA next)
 - `charts/sample-app` — demo workload chart (planned)
 - `.github/workflows/ci.yml` — actionlint on the workflows, ShellCheck + shell unit tests, then `terraform fmt`, lock-file check, `validate`, and TFLint (Helm lint when charts land)
 - `tests/` — shell unit checks for VPC CIDR carving, input validation, and the root outputs contract (run in CI)
@@ -28,7 +28,7 @@ terraform/
     vpc/
       main.tf         # VPC, subnets, route tables, NAT
       flow_logs.tf    # optional CloudWatch Flow Logs + IAM
-      endpoints.tf    # optional S3 / DynamoDB gateway + SSM / ECR / Logs / Secrets Manager / KMS interface endpoints
+      endpoints.tf    # optional S3 / DynamoDB gateway + SSM / ECR / Logs / Secrets Manager / KMS / STS interface endpoints
       variables.tf
       outputs.tf
 tests/
@@ -64,6 +64,7 @@ The `terraform/modules/vpc` module expects:
 | `enable_logs_endpoint` | When true, place an interface VPC endpoint for CloudWatch Logs in private subnets (default false; hourly charge; private log shipping without NAT) |
 | `enable_secretsmanager_endpoint` | When true, place an interface VPC endpoint for Secrets Manager in private subnets (default false; hourly charge; private secret fetches without NAT) |
 | `enable_kms_endpoint` | When true, place an interface VPC endpoint for KMS in private subnets (default false; hourly charge; private encrypt/decrypt without NAT) |
+| `enable_sts_endpoint` | When true, place an interface VPC endpoint for STS in private subnets (default false; hourly charge; regional `AssumeRoleWithWebIdentity` for IRSA pods without NAT) |
 | `enable_eks_subnet_tags` | When true, tag public subnets with `kubernetes.io/role/elb=1` and private with `kubernetes.io/role/internal-elb=1` for EKS load balancer discovery (default false) |
 | `eks_cluster_tag` | Optional cluster name; when non-empty and `enable_eks_subnet_tags` is true, also set `kubernetes.io/cluster/<name>=shared` on public and private subnets; must be a valid EKS cluster name (1-100 letters, digits, `-`, `_`, starting with a letter or digit) (default `""`) |
 
@@ -155,9 +156,13 @@ Set `enable_secretsmanager_endpoint = true` to add an Interface endpoint for `se
 
 Set `enable_kms_endpoint = true` to add an Interface endpoint for `kms` in every private subnet, reusing the same HTTPS security group as SSM/ECR/Logs/Secrets Manager when those are enabled. Private DNS stays on so apps resolve the regional KMS API over the VPC. Pairs well with Secrets Manager when private workloads decrypt data keys or CMK-backed secrets without NAT. Off by default because interface endpoints incur an hourly charge.
 
+### STS interface endpoint
+
+Set `enable_sts_endpoint = true` to add an Interface endpoint for `sts` in every private subnet, on the same shared HTTPS security group. IRSA (IAM roles for service accounts) works by having the AWS SDK in each pod call `sts:AssumeRoleWithWebIdentity` with its projected service-account token, so private EKS nodes without NAT need this endpoint before any pod can pick up an IAM role. Private DNS stays on, which covers the regional `sts.<region>.amazonaws.com` hostname; recent SDKs use the regional endpoint by default, and older ones need `AWS_STS_REGIONAL_ENDPOINTS=regional` (the EKS pod identity webhook sets this for IRSA pods). Off by default because interface endpoints incur an hourly charge.
+
 ### How interface endpoints are wired (`for_each`)
 
-SSM, ECR, CloudWatch Logs, Secrets Manager, and KMS share one `aws_vpc_endpoint.interface` resource driven by `for_each` over a local map (`interface_endpoint_services` in `endpoints.tf`). Each flag merges its service names into that map:
+SSM, ECR, CloudWatch Logs, Secrets Manager, KMS, and STS share one `aws_vpc_endpoint.interface` resource driven by `for_each` over a local map (`interface_endpoint_services` in `endpoints.tf`). Each flag merges its service names into that map:
 
 | Flag | Map keys | AWS service suffixes |
 | --- | --- | --- |
@@ -166,8 +171,9 @@ SSM, ECR, CloudWatch Logs, Secrets Manager, and KMS share one `aws_vpc_endpoint.
 | `enable_logs_endpoint` | `logs` | `logs` |
 | `enable_secretsmanager_endpoint` | `secretsmanager` | `secretsmanager` |
 | `enable_kms_endpoint` | `kms` | `kms` |
+| `enable_sts_endpoint` | `sts` | `sts` |
 
-When the map is non-empty, the module creates a single security group (HTTPS 443 from the VPC CIDR) and attaches it to every interface endpoint. Private subnet IDs are collected once and reused, so enabling a second flag only adds endpoint ENIs—it does not duplicate the SG or subnet list. Outputs such as `ssm_endpoint_id`, `ecr_api_endpoint_id`, `logs_endpoint_id`, `secretsmanager_endpoint_id`, `kms_endpoint_id`, and `vpc_endpoints_security_group_id` read from the same `for_each` map (null when the matching flag is off).
+When the map is non-empty, the module creates a single security group (HTTPS 443 from the VPC CIDR) and attaches it to every interface endpoint. Private subnet IDs are collected once and reused, so enabling a second flag only adds endpoint ENIs—it does not duplicate the SG or subnet list. Outputs such as `ssm_endpoint_id`, `ecr_api_endpoint_id`, `logs_endpoint_id`, `secretsmanager_endpoint_id`, `kms_endpoint_id`, `sts_endpoint_id`, and `vpc_endpoints_security_group_id` read from the same `for_each` map (null when the matching flag is off).
 
 ### Recommended endpoint combinations
 
@@ -179,6 +185,7 @@ Interface endpoints are billed hourly per AZ, so enable only what private worklo
 | Secrets without NAT | `enable_secretsmanager_endpoint` + `enable_kms_endpoint` | Fetch CMK-backed secrets and decrypt data keys on the AWS network |
 | Ops without a bastion | `enable_ssm_endpoint` | Session Manager needs ssm + ssmmessages + ec2messages together |
 | Private log shipping | `enable_logs_endpoint` | Agents and Flow Logs exporters reach CloudWatch Logs without NAT |
+| IRSA on private nodes | `enable_sts_endpoint` + `enable_ecr_endpoint` + `enable_s3_endpoint` | Pods exchange service-account tokens for IAM credentials and pull images without NAT |
 
 Gateway endpoints (S3, DynamoDB) stay on by default because they are free; interface flags stay off until you opt in.
 
@@ -190,7 +197,7 @@ Besides variable validations (`project_name` format and length, CIDR carving, `v
 | --- | --- |
 | `enable_ecr_endpoint` implies `enable_s3_endpoint` | Plan fails: ECR interface endpoints alone cannot pull image layers without the S3 gateway |
 
-Turn ECR on only with S3 left enabled (or re-enable S3 first). Other interface flags (SSM, Logs, Secrets Manager, KMS) have no cross-service preconditions today.
+Turn ECR on only with S3 left enabled (or re-enable S3 first). Other interface flags (SSM, Logs, Secrets Manager, KMS, STS) have no cross-service preconditions today.
 
 ### Troubleshooting plan-time errors
 
@@ -229,6 +236,7 @@ After `terraform apply`, the root stack exposes IDs that later modules (EKS, IRS
 | `ecr_api_endpoint_id` / `ecr_dkr_endpoint_id` | `enable_ecr_endpoint` | Private image pulls (pair with S3) |
 | `logs_endpoint_id` | `enable_logs_endpoint` | Private CloudWatch Logs shipping |
 | `secretsmanager_endpoint_id` / `kms_endpoint_id` | Matching interface flag | Private secret fetch + decrypt |
+| `sts_endpoint_id` | `enable_sts_endpoint` | IRSA credential exchange from private subnets |
 | `vpc_endpoints_security_group_id` | Any interface flag on | Shared HTTPS SG for interface ENIs |
 
 Disabled optional features return `null` for their outputs so callers can use a single `terraform output` map without conditional modules.
@@ -319,7 +327,7 @@ The hooks run `terraform fmt`, `terraform validate`, TFLint with the repo config
 ## Roadmap
 
 - [x] Repo scaffold + CI
-- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints, optional SSM/ECR/Logs/Secrets Manager/KMS interface endpoints)
+- [x] VPC module (subnets, NAT, optional flow logs, S3/DynamoDB gateway endpoints, optional SSM/ECR/Logs/Secrets Manager/KMS/STS interface endpoints)
 - [ ] EKS module + IRSA stubs
 - [ ] Sample app Helm chart
 - [ ] Docs: OIDC deploy from GitHub Actions

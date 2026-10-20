@@ -91,3 +91,8 @@ output "kms_endpoint_id" {
   description = "ID of the KMS interface VPC endpoint when enable_kms_endpoint is true; otherwise null."
   value       = var.enable_kms_endpoint ? aws_vpc_endpoint.interface["kms"].id : null
 }
+
+output "sts_endpoint_id" {
+  description = "ID of the STS interface VPC endpoint when enable_sts_endpoint is true; otherwise null."
+  value       = var.enable_sts_endpoint ? aws_vpc_endpoint.interface["sts"].id : null
+}

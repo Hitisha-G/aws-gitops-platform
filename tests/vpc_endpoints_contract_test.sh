@@ -29,6 +29,7 @@ ENDPOINT_SPECS=(
   "enable_logs_endpoint:false"
   "enable_secretsmanager_endpoint:false"
   "enable_kms_endpoint:false"
+  "enable_sts_endpoint:false"
 )
 
 # 1. Every toggle exists on both root and module with matching defaults.
@@ -110,7 +111,7 @@ if grep -q 'var.enable_ecr_endpoint' "$ENDPOINTS" \
 else
   fail "ECR interface services missing or not gated"
 fi
-for pair in 'enable_logs_endpoint:logs' 'enable_secretsmanager_endpoint:secretsmanager' 'enable_kms_endpoint:kms'; do
+for pair in 'enable_logs_endpoint:logs' 'enable_secretsmanager_endpoint:secretsmanager' 'enable_kms_endpoint:kms' 'enable_sts_endpoint:sts'; do
   flag="${pair%%:*}"
   svc="${pair##*:}"
   if grep -q "var.${flag}" "$ENDPOINTS" && grep -Eq "${svc}[[:space:]]*=[[:space:]]*\"${svc}\"" "$ENDPOINTS"; then
@@ -193,7 +194,8 @@ fi
 for pair in 'ssm:enable_ssm_endpoint' 'ssmmessages:enable_ssm_endpoint' \
   'ec2messages:enable_ssm_endpoint' 'ecr_api:enable_ecr_endpoint' \
   'ecr_dkr:enable_ecr_endpoint' 'logs:enable_logs_endpoint' \
-  'secretsmanager:enable_secretsmanager_endpoint' 'kms:enable_kms_endpoint'; do
+  'secretsmanager:enable_secretsmanager_endpoint' 'kms:enable_kms_endpoint' \
+  'sts:enable_sts_endpoint'; do
   key="${pair%%:*}"
   flag="${pair##*:}"
   if grep -A3 "^output \"${key}_endpoint_id\"" "$MODULE_OUTPUTS" \

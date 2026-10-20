@@ -88,6 +88,12 @@ variable "enable_kms_endpoint" {
   default     = false
 }
 
+variable "enable_sts_endpoint" {
+  type        = bool
+  description = "Create an interface VPC endpoint for STS in private subnets."
+  default     = false
+}
+
 variable "enable_eks_subnet_tags" {
   type        = bool
   description = "Tag VPC subnets for EKS load balancer discovery (kubernetes.io/role/*)."

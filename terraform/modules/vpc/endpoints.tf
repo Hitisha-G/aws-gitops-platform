@@ -28,6 +28,9 @@ locals {
     } : {},
     var.enable_kms_endpoint ? {
       kms = "kms"
+    } : {},
+    var.enable_sts_endpoint ? {
+      sts = "sts"
     } : {}
   )
 }
